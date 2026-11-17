@@ -1,0 +1,13 @@
+{
+  "file": "terrain/valles_marineris.bin",
+  "width": 700,
+  "height": 212,
+  "west": -108.0,
+  "east": -42.0,
+  "south": -18.0,
+  "north": 2.0,
+  "elev_min_m": -5388,
+  "elev_max_m": 8868,
+  "encoding": "int16 little-endian meters, row-major, north to south, west to east",
+  "sha256": "7b51c426632e7f71286007ba618213c3544d249df5fabc1e612ad6217b274393"
+}

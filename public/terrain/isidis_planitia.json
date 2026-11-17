@@ -1,0 +1,13 @@
+{
+  "file": "terrain/isidis_planitia.bin",
+  "width": 560,
+  "height": 354,
+  "west": 78.0,
+  "east": 116.0,
+  "south": -2.0,
+  "north": 22.0,
+  "elev_min_m": -5049,
+  "elev_max_m": 3745,
+  "encoding": "int16 little-endian meters, row-major, north to south, west to east",
+  "sha256": "6bc9d08be64d5c408fc5eb028d0111a5adcedb4dfab5dc0d2cd03186ff131bd3"
+}

@@ -1,0 +1,18 @@
+{
+  "topography": {
+    "product": "MGS MOLA MEGDR MEGT90N000FB",
+    "resolution": "32 pixels per degree",
+    "encoding": "MSB int16 meters, 5760 x 11520, areoid-relative topography",
+    "url": "https://pds-geosciences.wustl.edu/mgs/mgs-m-mola-5-megdr-l3-v1/mgsl_300x/meg032/megt90n000fb.img",
+    "sha256": "09ae1c0956afcdc869bd82c55993849f67c16ef0efe73f38cb1ea204c186ad8b",
+    "citation": "Smith, D.E., et al., Mars Orbiter Laser Altimeter (MOLA) Mission Experiment Gridded Data Records, NASA Planetary Data System. Instrument summary: Smith et al. (2001), J. Geophys. Res. 106, 23689\u201323722, doi:10.1029/2000JE001364.",
+    "tiles": "public/terrain/*.bin are area-averaged clips of this grid. Real MOLA, not synthetic."
+  },
+  "faults": {
+    "product": "USGS SIM 3292 Global Geologic Map of Mars, structure layer",
+    "doi": "10.3133/sim3292",
+    "citation": "Tanaka, K.L., Skinner, J.A., Jr., Dohm, J.M., Irwin, R.P., III, Kolb, E.J., Fortezzo, C.M., Platz, T., Michael, G.G., and Hare, T.M., 2014, Geologic map of Mars: U.S. Geological Survey Scientific Investigations Map 3292, doi:10.3133/sim3292.",
+    "api": "https://astrogeology.usgs.gov/pygeoapi/collections/mars/global_geologic_map/structure/items",
+    "notes": "Lines are real SIM 3292 structures, simplified and clipped. They are graben axes and wrinkle-ridge crests, not surveyed fault planes. Dip azimuth defaults to the right-hand normal of the digitized trace. Kinematics are assigned as documented in each feature's kinematics_basis."
+  }
+}

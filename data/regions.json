@@ -1,0 +1,91 @@
+{
+  "regions": [
+    {
+      "id": "valles_marineris",
+      "name": "Valles Marineris",
+      "summary": "Equatorial canyon system on the east flank of Tharsis. Extensional troughs and grabens; the spreadsheet normal-fault dip applies.",
+      "west": -108.0,
+      "east": -42.0,
+      "south": -18.0,
+      "north": 2.0,
+      "regime_default": "normal",
+      "crust_key": "d_crust_VM",
+      "default_impact": {
+        "lon": -70.2,
+        "lat": -9.2
+      },
+      "terrain": {
+        "file": "terrain/valles_marineris.bin",
+        "width": 700,
+        "height": 212,
+        "west": -108.0,
+        "east": -42.0,
+        "south": -18.0,
+        "north": 2.0,
+        "elev_min_m": -5388,
+        "elev_max_m": 8868,
+        "encoding": "int16 little-endian meters, row-major, north to south, west to east",
+        "sha256": "7b51c426632e7f71286007ba618213c3544d249df5fabc1e612ad6217b274393"
+      },
+      "faults": "faults/valles_marineris.geojson"
+    },
+    {
+      "id": "cerberus_fossae",
+      "name": "Cerberus Fossae",
+      "summary": "Young graben system in Elysium Planitia, southeast of Elysium Mons. The long fossae are the normal-fault targets.",
+      "west": 153.0,
+      "east": 176.0,
+      "south": 4.0,
+      "north": 13.5,
+      "regime_default": "normal",
+      "crust_key": "d_crust_CF",
+      "default_impact": {
+        "lon": 166.2,
+        "lat": 9.2
+      },
+      "terrain": {
+        "file": "terrain/cerberus_fossae.bin",
+        "width": 736,
+        "height": 304,
+        "west": 153.0,
+        "east": 176.0,
+        "south": 4.0,
+        "north": 13.5,
+        "elev_min_m": -4456,
+        "elev_max_m": 1995,
+        "encoding": "int16 little-endian meters, row-major, north to south, west to east",
+        "sha256": "facb7ed2f2d7698b6e8dac8d992ec4a15b36ee16101fb97e632671e0f1f93aba"
+      },
+      "faults": "faults/cerberus_fossae.geojson"
+    },
+    {
+      "id": "isidis_planitia",
+      "name": "Isidis Planitia",
+      "summary": "Noachian impact basin with a thin crust. Wrinkle ridges and the Amenthes Rupes scarp are treated as thrusts (spreadsheet dip 30\u00b0).",
+      "west": 78.0,
+      "east": 116.0,
+      "south": -2.0,
+      "north": 22.0,
+      "regime_default": "thrust",
+      "crust_key": "d_crust_Isidis",
+      "default_impact": {
+        "lon": 93.5,
+        "lat": 12.5
+      },
+      "terrain": {
+        "file": "terrain/isidis_planitia.bin",
+        "width": 560,
+        "height": 354,
+        "west": 78.0,
+        "east": 116.0,
+        "south": -2.0,
+        "north": 22.0,
+        "elev_min_m": -5049,
+        "elev_max_m": 3745,
+        "encoding": "int16 little-endian meters, row-major, north to south, west to east",
+        "sha256": "6bc9d08be64d5c408fc5eb028d0111a5adcedb4dfab5dc0d2cd03186ff131bd3"
+      },
+      "faults": "faults/isidis_planitia.geojson"
+    }
+  ]
+}
