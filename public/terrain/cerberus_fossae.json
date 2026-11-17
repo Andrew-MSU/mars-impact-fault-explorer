@@ -1,0 +1,13 @@
+{
+  "file": "terrain/cerberus_fossae.bin",
+  "width": 736,
+  "height": 304,
+  "west": 153.0,
+  "east": 176.0,
+  "south": 4.0,
+  "north": 13.5,
+  "elev_min_m": -4456,
+  "elev_max_m": 1995,
+  "encoding": "int16 little-endian meters, row-major, north to south, west to east",
+  "sha256": "facb7ed2f2d7698b6e8dac8d992ec4a15b36ee16101fb97e632671e0f1f93aba"
+}

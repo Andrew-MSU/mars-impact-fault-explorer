@@ -1,0 +1,165 @@
+{
+  "description": "Citations from the Literature_References sheet of the parameter workbook.",
+  "references": [
+    {
+      "citation": "Schultz (1993)",
+      "title": "Brittle strength of basaltic rock masses with applications to Venus",
+      "journal": "JGR Planets",
+      "year": 1993,
+      "doi": "10.1029/93JE00691",
+      "url": "https://doi.org/10.1029/93JE00691"
+    },
+    {
+      "citation": "Byerlee (1978)",
+      "title": "Friction of rocks",
+      "journal": "Pure and Applied Geophysics",
+      "year": 1978,
+      "doi": "10.1007/BF00876528",
+      "url": "https://doi.org/10.1007/BF00876528"
+    },
+    {
+      "citation": "Mackwell et al. (1998)",
+      "title": "High-temperature deformation of dry diabase with application to tectonics on Venus",
+      "journal": "JGR Solid Earth",
+      "year": 1998,
+      "doi": "10.1029/97JB02671",
+      "url": "https://doi.org/10.1029/97JB02671"
+    },
+    {
+      "citation": "Caristan (1982)",
+      "title": "The transition from high temperature creep to fracture in Maryland diabase",
+      "journal": "JGR Solid Earth",
+      "year": 1982,
+      "doi": "10.1029/JB087iB08p06781",
+      "url": "https://doi.org/10.1029/JB087iB08p06781"
+    },
+    {
+      "citation": "Rybacki & Dresen (2000)",
+      "title": "High-temperature deformation of wet synthetic anorthite aggregates",
+      "journal": "Geology",
+      "year": 2000,
+      "doi": "10.1130/0091-7613(2000)28<399:HFACDO>2.0.CO;2",
+      "url": "https://doi.org/10.1130/0091-7613(2000)28<399:HFACDO>2.0.CO;2"
+    },
+    {
+      "citation": "Breuer & Spohn (2006)",
+      "title": "Viscosity of the Martian mantle and its initial temperature: Constraints from crust formation history and the evolution of the magnetic field",
+      "journal": "Planetary and Space Science",
+      "year": 2006,
+      "doi": "10.1016/j.pss.2005.12.008",
+      "url": "https://doi.org/10.1016/j.pss.2005.12.008"
+    },
+    {
+      "citation": "Plesa et al. (2018)",
+      "title": "The Interior Structure and Thermal Evolution of Mars",
+      "journal": "Geophysical Research Letters",
+      "year": 2018,
+      "doi": "10.1029/2018JE005854",
+      "url": "https://doi.org/10.1029/2018JE005854"
+    },
+    {
+      "citation": "Parro et al. (2017)",
+      "title": "Present-day heat flow model of Mars",
+      "journal": "Scientific Reports",
+      "year": 2017,
+      "doi": "10.1038/srep45602",
+      "url": "https://doi.org/10.1038/srep45602"
+    },
+    {
+      "citation": "Hahn et al. (2011)",
+      "title": "Martian surface heat production and crustal heat flow from Mars Odyssey Gamma-Ray spectrometry",
+      "journal": "Geophysical Research Letters",
+      "year": 2011,
+      "doi": "10.1029/2011GL047435",
+      "url": "https://doi.org/10.1029/2011GL047435"
+    },
+    {
+      "citation": "Azuma & Katayama (2017)",
+      "title": "Evolution of the rheological structure of Mars",
+      "journal": "Earth, Planets and Space",
+      "year": 2017,
+      "doi": "10.1186/s40623-016-0593-z",
+      "url": "https://doi.org/10.1186/s40623-016-0593-z"
+    },
+    {
+      "citation": "Grott et al. (2007)",
+      "title": "Declining heat flux on Mars: Evidence from mechanical and thermal modeling of lobate scarps",
+      "journal": "Icarus",
+      "year": 2007,
+      "doi": "10.1016/j.icarus.2006.10.001",
+      "url": "https://doi.org/10.1016/j.icarus.2006.10.001"
+    },
+    {
+      "citation": "Schultz & Watters (2001)",
+      "title": "Forward mechanical modeling of the Amenthes Rupes thrust fault on Mars",
+      "journal": "JGR Planets",
+      "year": 2001,
+      "doi": "10.1029/2000JE001369",
+      "url": "https://doi.org/10.1029/2000JE001369"
+    },
+    {
+      "citation": "Wilkins & Schultz (2003)",
+      "title": "Cross faults in extensional settings: Stress triggering, displacement localization, and implications for the origin of blunt troughs at Valles Marineris, Mars",
+      "journal": "JGR Planets",
+      "year": 2003,
+      "doi": "10.1029/2002JE001968",
+      "url": "https://doi.org/10.1029/2002JE001968"
+    },
+    {
+      "citation": "Wieczorek et al. (2022)",
+      "title": "InSight Constraints on the Global Character of the Martian Crust",
+      "journal": "JGR Planets",
+      "year": 2022,
+      "doi": "10.1029/2022JE007298",
+      "url": "https://doi.org/10.1029/2022JE007298"
+    },
+    {
+      "citation": "Knapmeyer-Endrun et al. (2021)",
+      "title": "Thickness and structure of the martian crust from InSight seismic data",
+      "journal": "Science",
+      "year": 2021,
+      "doi": "10.1126/science.abf8966",
+      "url": "https://doi.org/10.1126/science.abf8966"
+    },
+    {
+      "citation": "St\u00e4hler et al. (2021)",
+      "title": "Seismic detection of the martian core",
+      "journal": "Science",
+      "year": 2021,
+      "doi": "10.1126/science.abi7730",
+      "url": "https://doi.org/10.1126/science.abi7730"
+    },
+    {
+      "citation": "Samuel et al. (2023)",
+      "title": "Geophysical evidence for an enriched molten silicate layer above Mars's core",
+      "journal": "Nature",
+      "year": 2023,
+      "doi": "10.1038/s41586-023-06601-8",
+      "url": "https://doi.org/10.1038/s41586-023-06601-8"
+    },
+    {
+      "citation": "Khan et al. (2023)",
+      "title": "Evidence for a liquid silicate layer atop the Martian core",
+      "journal": "Nature",
+      "year": 2023,
+      "doi": "10.1038/s41586-023-06586-4",
+      "url": "https://doi.org/10.1038/s41586-023-06586-4"
+    },
+    {
+      "citation": "Taylor (2013)",
+      "title": "The bulk composition of Mars",
+      "journal": "Chemie der Erde - Geochemistry",
+      "year": 2013,
+      "doi": "10.1016/j.chemer.2013.09.006",
+      "url": "https://doi.org/10.1016/j.chemer.2013.09.006"
+    },
+    {
+      "citation": "Yoshizaki & McDonough (2020)",
+      "title": "The composition of Mars",
+      "journal": "Geochimica et Cosmochimica Acta",
+      "year": 2020,
+      "doi": "10.1016/j.gca.2020.01.011",
+      "url": "https://doi.org/10.1016/j.gca.2020.01.011"
+    }
+  ]
+}
