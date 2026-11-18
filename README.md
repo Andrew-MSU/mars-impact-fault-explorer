@@ -67,6 +67,34 @@ Mw about 9–10, and it is still a small fraction of the fault area. That is
 a result of this model, not a target it was tuned to hit. Raising criticality
 toward 1, or the seismic efficiency, moves the onset to smaller impacts.
 
+## Basin & Global
+
+**Basin & Global**, next to Local in the header, asks a wider question: what
+impact, if any, starts a protective geodynamo. The About panel states the
+two pathways (faults → weak zone → subduction → core heat flow, and direct
+core stirring or core-top heating). The globe is clickable. Faults are the
+USGS SIM 3292 tectonic lines longer than 50 km
+(`public/faults/sim3292_global.geojson`).
+
+The sidebar adds water (with Dry and Wet buttons), a thin-shell Tharsis and
+basin load, a fault cascade, a subduction index, and a core/dynamo panel.
+Core conductivity is a slider because it is not in the spreadsheet. Presets
+are the 1650 km molten-layer core, Wheeler's 1830 km VPLanet baseline, and
+a 613 km inner core. Dry versus wet, and the three cores, are shown side by
+side. A regime map paints impactor size against speed: faults slip, the lid
+breaks, or a protective dynamo turns on. Protection means the magnetopause
+stays above the upper atmosphere at nominal and storm solar-wind pressure,
+and the moment is past the Gunell et al. (2018) cusp-escape peak. Earth's
+field is only a comparison.
+
+This is a first-order browser estimate. Precomputed sweeps from the offline
+model go in `data/offline_runs/*.json` (schema in MODEL.md) and can be
+interpolated. `EXAMPLE.json` is a fake grid for the loader. Do not cite it.
+
+Every new free parameter is a slider, with its default, range, and source
+under the control. MODEL.md lists what is not interactive and the assumptions
+Wheeler should review before treating a number as a result.
+
 ## Running it locally
 
 Node 22 is what CI uses. Any current Node 20+ should be fine.
@@ -221,9 +249,12 @@ still the preview.
 | --- | --- |
 | `src/model/physics.js` | Pure functions. No DOM. Safe to unit test. |
 | `src/model/scenario.js` | Fault sampling, one impact, the diameter sweep, the time series. |
+| `src/model/globalPhysics.js` | Shell stress, cascade, subduction, dynamo, offline interpolation. |
+| `src/model/globalScenario.js` | One global impact on the SIM 3292 catalog. |
 | `src/main.js` | Page, sliders, URL, export. |
 | `src/scene.js` | three.js terrain, fault planes, cutaway. |
-| `src/plots.js` | Canvas figures. |
+| `src/globe.js` | Clickable globe for Basin & Global. |
+| `src/plots.js` | Canvas figures, including the regime map. |
 | `data/` | Sheet JSON, measured dips, region metadata, geodata provenance. |
 | `public/terrain`, `public/faults` | Static tiles. Vite copies them into `dist/`. |
 

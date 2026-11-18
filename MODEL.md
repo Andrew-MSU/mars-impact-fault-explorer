@@ -7,6 +7,10 @@ for Terraforming Applications* (PI: Andrew Laskowski). It is not a finite-elemen
 model and it does not run VPLanet. Both of those are meant to replace pieces
 of this calculation later, through the same inputs.
 
+Local mode is the regional calculation below. **Basin & Global** mode, the
+last section of this note, follows one impact from the global fault network
+to a possible geodynamo. That section is still a first-order browser estimate.
+
 Compression is positive in the stress tensor. The Coulomb normal-stress
 change is **unclamping-positive**, so the sign convention is the one in
 King, Stein & Lin (1994):
@@ -408,7 +412,8 @@ public explorer can default to them.
   normal-faulting Valles Marineris stays hard to reactivate, which is
   the point of resolving the rake.
 - VPLanet bulk inputs (core radius and mass, radionuclide concentrations)
-  are on the panel and in the export. This model does not read them.
+  are on the panel and in the export. The local reactivation model does not
+  read them. Basin & Global does, as a parameterized estimate only.
 
 ## References
 
@@ -421,3 +426,332 @@ public explorer can default to them.
 - Teanby, N. A., & Wookey, J. (2011). Seismic detection of meteorite impacts on Mars. *Physics of the Earth and Planetary Interiors*, 186, 70–80.
 - Croft, S. K. (1985). The scaling of complex craters. *Proceedings of the 15th Lunar and Planetary Science Conference*, *JGR* 90, C828–C842.
 - Parameter-sheet sources (Schultz 1993, Byerlee 1978, Mackwell et al. 1998, Caristan 1982, Rybacki & Dresen 2000, and the thermal and crustal papers) are stored with DOIs in `data/parameters.json` and `data/references.json`.
+
+## Basin & Global
+
+The question is what kind of impact it takes to start a protective Martian
+geodynamo, on the timescale the physics actually produces. One impact has
+two pathways.
+
+1. **Slow, structural.** A fault cascade links reactivated faults into a weak
+   zone. If that zone fails the lithosphere, a force balance asks whether
+   subduction can start. Cold lithosphere delivered to the core-mantle
+   boundary raises the core heat flow, which can turn a dynamo on.
+2. **Fast, core-direct.** Mechanical stirring of the liquid core from an
+   impact-driven spin change, the mechanism Le Bars et al. (2011) argued for
+   the Moon. Direct heating of the core top can instead suppress a thermal
+   dynamo (Roberts, Lillis & Manga 2009).
+
+The engineered comparison is an artificial dipole at Mars–Sun L1 (Green et al.
+2017). Their concept stands the solar wind off upstream of the planet. They
+discuss a source of order 1–2 T. This page does not convert that into a
+planetary dipole moment. It is a different geometry, described in the About
+panel and not given a fake equivalent moment.
+
+Code: `src/model/globalPhysics.js`, `src/model/globalScenario.js`. Tests are
+in `test/global.test.js`.
+
+### Core the estimate starts from
+
+There is no settled consensus. The baseline used here is a fully liquid,
+well-mixed metallic core of about 1650 km radius beneath a ~150 km basal
+molten silicate layer (Samuel et al. 2023, doi:10.1038/s41586-023-06601-8;
+Khan et al. 2023, doi:10.1038/s41586-023-06586-4). Khan's density for that
+layer rules out a stably stratified iron layer at the top of the core, so
+the molten-layer heat-transfer fraction defaults to 1.
+
+Two presets sit next to that baseline:
+
+- Wheeler's homogeneous core, 1830 km (Stähler et al. 2021), which is the
+  value the spreadsheet flags as the VPLanet baseline (`R_core_std`). This
+  page's default is 1650 km, not 1830.
+- A solid inner core of 613 km (Bi et al. 2025,
+  doi:10.1038/s41586-025-09361-9, ±67 km). The preset sets the radius only.
+  It does not invent compositional buoyancy. That is the compositional-flux
+  slider, default 0.
+
+The sheet's `M_core` value is the homogeneous-core mass. The 1650 km preset
+copies the bottom of that range, 1.17×10²³ kg, which the sheet note gives
+for the basal-melt case. Until that preset is clicked, a 1650 km radius
+paired with the homogeneous mass implies a high density, and the panel says so.
+
+### Network stress
+
+Every tectonic graben, pit-crater chain, and wrinkle ridge in
+`public/faults/sim3292_global.geojson` gets a Coulomb stress. Dip angle and
+dip direction come from the same dip-source selector as local mode
+(Wheeler measured, HiRISE programmatic, or the literature 60°/30°). A fault
+inside one of the three focus windows uses that window's value. A fault
+outside them uses the literature dips. A feature `dip_deg` or
+`dip_azimuth_deg` still wins. The file is
+USGS SIM 3292, simplified, with lines shorter than 50 km removed. Static
+stress is the same Boussinesq point load as local mode, cut off beyond the
+static-cutoff slider because a half-space point load is not a global
+solution. Dynamic stress uses the great-circle distance and is multiplied
+by an antipodal Gaussian gain. The gain is an assumption. It is not a wave
+simulation.
+
+Background stress is the local-mode Andersonian field, scaled by criticality,
+plus a thin-shell cap load:
+
+- Tharsis, centered on a movable longitude and latitude.
+- Hellas, Isidis, Argyre, and Utopia. Centers and diameters are the
+  footprints in `data/basins.json`. Unloading is a negative cap. A mascon
+  is a positive cap. Isidis and Utopia carry the mascon flag after the
+  qualitative pattern in Neumann et al. (2004); the magnitudes are sliders.
+- Isostatic support is tension under a positive load and radial compression
+  in the surrounding annulus. Flexural support flips both signs. This shape
+  is a smooth stand-in so the magnitude can be explored. It is not Banerdt's
+  spherical-harmonic solution.
+- A relaxation slider multiplies every load by `(1 − rebound)`.
+
+### Cascade, weak zone, water
+
+A failed fault adds
+
+\[
+\Delta\mathrm{CFS} = f\,\Delta\sigma\,\left(\frac{L}{L+d}\right)^{p} \lvert\cos\Delta\mathrm{strike}\rvert
+\]
+
+to neighbors inside the transfer range, for a set number of passes. Failed
+faults closer than the link distance form a weak zone. The reported length
+is the sum of member lengths. Depth is the deepest brittle sample that
+failed. The zone cuts the elastic lithosphere when that depth reaches \(T_e\)
+and the length is at least `lid_length_factor` × \(T_e\). Nothing below the
+BDT fails unless the ductile-continuation slider is raised.
+
+The seed selector is either those mapped faults (default) or every SIM 3292
+trace whose midpoint lies in the Valles Marineris window of `regions.json`,
+treated as one candidate plate boundary (Yin 2012, doi:10.1130/L192.1) and
+then linked to nearby failures.
+
+Damage is \(1-\exp(-\mathrm{rate}\times L_\mathrm{failed}/L_\mathrm{zone})\),
+multiplied by \(\exp(-\mathrm{age}/t_\mathrm{heal})\).
+
+The water slider \(w\) blends the sheet's dry and wet diabase. \(A\) is
+interpolated in log space. \(n\) and \(Q\) are linear. Pore pressure is
+\(\lambda_\mathrm{dry} + w(\lambda_\mathrm{wet}-\lambda_\mathrm{dry})\).
+Fault friction is \(\tan\phi\,(1 - w \times \mathrm{clay})\). The clay
+factor multiplies only the Coulomb \(\mu\), not the Andersonian stress ratio.
+Dry and Wet buttons set \(w = 0\) and \(w = 1\). The panel runs both ends
+side by side.
+
+### Subduction index
+
+Force per unit length. Driving: the compressive part of the Tharsis shell
+stress, the compressive part of the basin shell stress, a plume pressure
+equal to `plume_fraction` × coupled energy divided by the planetary volume,
+and buoyancy when the lithosphere is denser than the mantle. Resistance:
+the frictional strength of the damaged lithosphere, and buoyancy when the
+lithosphere is lighter. Subduction initiates when the ratio is at least 1.
+
+Lithosphere density mixes sheet crustal density, an eclogite fraction, and
+a mantle-lithosphere density equal to the mantle density minus a depletion.
+Depleted, fertile, and eclogitized buttons set those sliders. They are
+starting points.
+
+If subduction initiates, a slab of thickness \(h\), width equal to the zone
+length, and speed \(v\) carries a temperature contrast between the CMB
+temperature and the geotherm at the base of the lithosphere. The extra CMB
+flux is that power spread over the core surface. Onset is the mantle-column
+thickness divided by \(v\). Duration is the zone length divided by \(v\).
+
+### Dynamo
+
+Present-day elemental heating rates used for the U/Th/K sliders, natural
+isotopic composition, are \(9.7\times 10^{-5}\) W/kg for U,
+\(2.6\times 10^{-5}\) W/kg for Th, and \(3.4\times 10^{-9}\) W/kg for K.
+The early-Mars epoch multiplies by \(H_\mathrm{early}/H_\mathrm{present}\)
+from the sheet. That ratio is a crustal proxy for the whole silicate shell,
+and the panel's radio scale multiplies it again.
+
+In steady state the CMB power is the heat flow at the base of the crust
+minus radiogenic heating below the crust, minus a secular fraction of the
+base-of-crust power. Positive secular fraction means the mantle is cooling
+and supplying part of \(q_m\) itself. The molten-layer fraction then passes
+that power into the metal. The adiabatic threshold is
+
+\[
+q_\mathrm{ad} = k_c \alpha g_c T_\mathrm{cmb} / c_p, \qquad g_c = GM_c/R_c^2.
+\]
+
+\(k_c\), \(\alpha\), and \(c_p\) are not in the spreadsheet. Conductivity
+defaults to 40 W/m/K and is labeled as an assumption. A thermal moment is
+estimated only from the super-adiabatic flux:
+
+\[
+B = \beta \sqrt{\rho\mu_0}\,(F d)^{1/3}, \qquad F = \alpha g q_\mathrm{conv}/(\rho c_p).
+\]
+
+\(\beta\) is a slider. The form follows buoyancy-flux scalings (Christensen,
+Holzwarth & Reiners 2009). \(\beta\) is not their fitted number. \(d\) is the
+convecting shell thickness, outer radius minus inner radius.
+
+Spin stirring uses a fraction of \(m v_\mathrm{tangential} R\). The core is
+left with \(\Delta\Omega = L / I_\mathrm{mantle}\). It turns on when
+\(\Delta\Omega/\Omega\) exceeds the threshold slider. A fraction of the
+differential-rotation energy is put in the magnetic field. Core heating
+deposits a fraction of the coupled energy in a layer at the top of the core
+and subtracts \(E/(A t_\mathrm{diff})\) from the CMB flux for the diffusion
+time of that layer. The panel says when this suppression is what turns a
+thermal dynamo off.
+
+### What counts as protective
+
+Magnetopause radius from pressure balance:
+
+\[
+R_\mathrm{mp} = \left(\frac{\mu_0 M^2}{8\pi^2 P_\mathrm{sw}}\right)^{1/6}.
+\]
+
+The nominal pressure defaults to the dynamic pressure implied by Gunell et
+al. (2018) Table A.1 for Mars (\(n = 2.6\times 10^6\,\mathrm{m}^{-3}\),
+\(v = 400\,\mathrm{km\,s}^{-1}\), about 0.7 nPa). Storm pressure is that
+value times a factor, default 5, which is an assumption. The upper atmosphere
+defaults to their exobase altitude, \(r_\mathrm{exo}-r_\mathrm{Mars} = 220\,\mathrm{km}\).
+
+A case is protective only when the standoff altitude clears that height at
+both pressures and the moment is past the Gunell cusp-escape peak. The paper's
+text places that peak near \(2.5\times 10^{24}\,\mathrm{A\,m}^2\), about 30
+times Earth's moment of \(7.77\times 10^{22}\,\mathrm{A\,m}^2\). Their
+Mars-like curves are in the same figure; the slider is there so a different
+reading of Fig. 3 can be tried. Past the peak, their escape rate declines
+toward the unmagnetized rate. It does not fall to zero, and the page says
+that. Earth's moment is shown only as a comparison. An Earth-strength field
+does not pass this peak test.
+
+The regime map paints impactor diameter against impact speed:
+
+- faults slip, if any fault fails or is excavated
+- the lid breaks, if the weak zone cuts \(T_e\) at the required length, or the subduction index reaches 1
+- the dynamo turns on, only when the retention tests pass
+
+Dynamo wins over a broken lid, which wins over slip. The smallest protective
+impact is the smallest diameter on a coarse grid of speed, angle, and a few
+published sites (the clicked point, Hellas, Isidis, Argyre, Valles Marineris,
+and the Tharsis center). It is not a continuous optimum. Core heating can
+make a larger impact less favorable than a smaller one, so the search does
+not assume the outcome improves with size.
+
+### Offline runs
+
+Drop precomputed sweeps in `data/offline_runs/*.json`. The page lists them
+in the Offline model selector and interpolates. The browser estimate is
+always shown as well. `EXAMPLE.json` is a hand-written grid so the loader
+can be tested. It is not a VPLanet result and must not be cited.
+
+```json
+{
+  "schema": "mars-explorer-offline-run/v1",
+  "example": false,
+  "label": "Short description and the model that produced the grid",
+  "axes": ["impactor_diameter_m", "water_fraction"],
+  "outputs": ["dynamo_on", "regime", "time_to_onset_yr", "duration_yr", "magnetic_moment_Am2", "standoff_over_rp"],
+  "runs": [
+    {
+      "impactor_diameter_m": 10000,
+      "water_fraction": 0,
+      "dynamo_on": false,
+      "regime": "slip",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 0,
+      "standoff_over_rp": 1
+    }
+  ]
+}
+```
+
+Axes the page currently queries are `impactor_diameter_m` and
+`water_fraction`. Extra axes in a file are bracketed if the query supplies
+them; otherwise the first grid edge is used. Numeric outputs are multilinear.
+`dynamo_on` and `regime` are returned only when every corner of the cell
+agrees. A disagreement sets the threshold warning and leaves those fields
+blank. Do not smooth across a dynamo threshold.
+
+### Not interactive, and why
+
+- **SIM 3292 geometry, the 50 km length cut, and the kinematic assignment.**
+  Graben axes and pit chains are normal faults. Wrinkle ridges are thrusts.
+  Changing that means rebuilding `public/faults/sim3292_global.geojson`
+  with `scripts/build_global_faults.py`. Dip *angle* is the sheet slider
+  (`theta_normal`, `theta_thrust`) unless a feature has `dip_deg`. Dip
+  azimuth is the right-hand normal of the trace unless `dip_azimuth_deg`
+  is set. Basin & Global uses the same dip-source selector as local mode
+  (`resolveDip` / `resolveDipAzimuth` in `src/model/dips.js`). Inside
+  Valles Marineris, Cerberus Fossae, and Isidis the selected source supplies
+  the dip. Elsewhere the literature dips are used. There is no second selector.
+- **Collins–Holsapple exponents and the 7 km simple-complex diameter.**
+  They are the published crater formula already fixed in local mode.
+  Impactor diameter, speed, angle, and density are sliders.
+- **Mars radius (3,396,190 m) and gravity (3.71 m s⁻²).** Distances and
+  the stress calculation share these with the MOLA and SIM 3292 geometry.
+- **Elemental heating rates** listed above. `radio_scale` multiplies them.
+  Abundances are the sheet sliders.
+- **Basin centers and diameters** in `data/basins.json`. They are footprints.
+  Every basin magnitude is a slider.
+- **Earth's magnetic moment**, \(7.77\times 10^{22}\,\mathrm{A\,m}^2\),
+  from Gunell et al. (2018). Comparison only.
+- **The pressure-balance constants** in the standoff formula.
+- **No global MOLA texture.** The global grid is not in the repository.
+  Local mode still uses the regional MOLA tiles.
+- **The L1 shield** is described and not turned into a number.
+- **The offline model is not executed here.** Only interpolation of a file
+  you provide.
+
+### Assumptions Wheeler should review
+
+Each of these is a slider. The default is a starting value, not a measurement.
+
+| Quantity | Default | Range | Why it is an assumption |
+| --- | --- | --- | --- |
+| Tharsis magnitude | 10 MPa | 0–200 | Shape-function amplitude. Published membrane stresses are often tens of MPa. 10 keeps the default map from being pre-failed at criticality 0.85. |
+| Tharsis center | −100°, 0° | full globe | A round point under the rise. |
+| Tharsis radius | 50° | 10–90° | Cap size. |
+| Basin unloading | 5 MPa | 0–150 | Same shape function. |
+| Isidis and Utopia mascons | 10 MPa | 0–80 | Neumann et al. (2004) supply the flag, not the stress. Hellas and Argyre default to 0. |
+| Load relaxation | 0 | 0–1 | Not a viscous integration. |
+| Antipodal gain and width | 5, 12° | 1–30, 2–45° | Geometric envelope. |
+| Static cutoff | 2000 km | 200–8000 | Half-space limit. |
+| Cascade fraction, exponent, stress drop, range | 0.15, 3, 3 MPa, 400 km | see sliders | Not an Okada cascade. |
+| Link distance | 150 km | 10–1500 | What "connected" means. |
+| Damage rate and healing time | 1, 100 Myr | see sliders | One-parameter damage. |
+| Elastic thickness | 100 km | 10–300 | Matches the present-day BDT on the sheet and is not the same quantity. |
+| Lid-break length | 3 Te | 1–20 | |
+| Ductile continuation | 0 | 0–1 | Default refuses to fail rock below the BDT. |
+| Mantle density | 3500 kg/m³ | 3300–3700 | Not in the sheet. |
+| Depletion | 50 kg/m³ | 0–150 | Order of a depleted residue. |
+| Eclogite density | 3500 kg/m³ | 3200–3800 | |
+| Plume energy fraction | 0.01 | 10⁻⁴–0.5 | |
+| Slab speed | 1 cm/yr | 0.01–20 | |
+| Rock specific heat | 1200 J/kg/K | 800–1600 | Slab heat only. |
+| Core conductivity | 40 W/m/K | 5–150 | Missing from the sheet. Sets \(q_\mathrm{ad}\). |
+| Core expansivity and specific heat | 10⁻⁵ K⁻¹, 850 J/kg/K | see sliders | Liquid-iron order of magnitude. |
+| Dynamo prefactor β | 0.05 | 0.001–1 | Not a published fit. |
+| Dipole fraction | 0.2 | 0.01–1 | |
+| Molten-layer transfer | 1 | 0–1 | Default follows Khan's argument against a stable iron blanket. |
+| Secular fraction | 0 | −1–1 | Steady state. |
+| Compositional flux | 0 | 0–30 mW/m² | The 613 km preset does not set this. |
+| Spin coupling and ΔΩ/Ω threshold | 0.1, 0.02 | see sliders | Le Bars et al. (2011) is the mechanism, not these numbers. |
+| Ohmic fraction and stirring duration | 0.01, 10⁴ yr | see sliders | |
+| Core-heat fraction and lid thickness | 0.01, 100 km | see sliders | Roberts et al. (2009) is the mechanism. |
+| Storm pressure factor | 5 | 1–40 | Gunell's table is a nominal wind. |
+| Gunell peak moment | 2.5×10²⁴ A m² | 10²⁰–10²⁷ | The text's cusp peak. Move it if Fig. 3 is read differently for Mars. |
+| Clay friction cut | 0.3 | 0–0.8 | Wet-end reduction of tan φ. |
+| Moment factor | 0.364 | 0.3–0.4 | Order of Mars' polar moment factor. |
+| Pore pressure at the wet end | 0.4 | 0–0.9 | Matches the early-Mars local preset. |
+
+### Further reading for this section
+
+- Bi, H., et al. (2025). Seismic detection of a 600-km solid inner core in Mars. *Nature*. doi:10.1038/s41586-025-09361-9
+- Christensen, U. R., Holzwarth, V., & Reiners, A. (2009). Energy flux determines magnetic field strength of planets and stars. *Nature*, 457, 167–169.
+- Green, J. L., et al. (2017). A future Mars environment for science and exploration. Planetary Science Vision 2050 Workshop, abstract 8250.
+- Gunell, H., et al. (2018). Why an intrinsic magnetic field does not protect a planet against atmospheric escape. *Astronomy & Astrophysics*, 614, L3. doi:10.1051/0004-6361/201832934
+- Khan, A., et al. (2023). Evidence for a liquid silicate layer atop the Martian core. *Nature*. doi:10.1038/s41586-023-06586-4
+- Le Bars, M., Wieczorek, M. A., Karatekin, Ö., Cébron, D., & Laneuville, M. (2011). An impact-driven dynamo for the early Moon. *Nature*, 479, 215–218.
+- Neumann, G. A., Zuber, M. T., Wieczorek, M. A., McGovern, P. J., Lemoine, F. G., Smith, D. E., & Solomon, S. C. (2004). Crustal structure of Mars from gravity and topography. *Science*, 304, 842–845. doi:10.1126/science.1099208
+- Roberts, J. H., Lillis, R. J., & Manga, M. (2009). Giant impacts on early Mars and the cessation of the Martian dynamo. *Journal of Geophysical Research*, 114, E04009.
+- Samuel, H., et al. (2023). Geophysical evidence for an enriched molten silicate layer above Mars's core. *Nature*. doi:10.1038/s41586-023-06601-8
+- Stähler, S. C., et al. (2021). Seismic detection of the Martian core. *Science*, 373, 443–448. doi:10.1126/science.abi7730
+- Yin, A. (2012). Structural analysis of the Valles Marineris fault zone. *Lithosphere*, 4, 286–330. doi:10.1130/L192.1
+

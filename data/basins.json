@@ -1,0 +1,45 @@
+{
+  "note": "Centers and diameters are round published basin scales used as the footprint of the thin-shell load. They are not a gravity inversion. Stress magnitudes are sliders, not these fields. Mascon flags follow the qualitative pattern in Neumann et al. (2004, Science 304, 842, doi:10.1126/science.1099208): Isidis and Utopia carry positive anomalies; Hellas and Argyre are the comparison basins without that flag.",
+  "basins": [
+    {
+      "id": "hellas",
+      "name": "Hellas",
+      "lon": 70.5,
+      "lat": -42.4,
+      "diameter_km": 2300,
+      "mascon": false,
+      "unload_key": "hellas_unload_mpa",
+      "mascon_key": "hellas_mascon_mpa"
+    },
+    {
+      "id": "isidis",
+      "name": "Isidis",
+      "lon": 87.0,
+      "lat": 12.9,
+      "diameter_km": 1500,
+      "mascon": true,
+      "unload_key": "isidis_unload_mpa",
+      "mascon_key": "isidis_mascon_mpa"
+    },
+    {
+      "id": "argyre",
+      "name": "Argyre",
+      "lon": -43.3,
+      "lat": -49.7,
+      "diameter_km": 1800,
+      "mascon": false,
+      "unload_key": "argyre_unload_mpa",
+      "mascon_key": "argyre_mascon_mpa"
+    },
+    {
+      "id": "utopia",
+      "name": "Utopia",
+      "lon": 117.5,
+      "lat": 46.7,
+      "diameter_km": 3300,
+      "mascon": true,
+      "unload_key": "utopia_unload_mpa",
+      "mascon_key": "utopia_mascon_mpa"
+    }
+  ]
+}

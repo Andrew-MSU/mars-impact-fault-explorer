@@ -152,6 +152,7 @@ export function backgroundOnFault({
   regime,
   dipDeg,
   kinematics,
+  muScale = 1,
 }) {
   const depth = Math.max(depthM, 0);
   const sigmaV = density * gravity * depth;
@@ -160,7 +161,7 @@ export function backgroundOnFault({
   const phi = (phiDeg * Math.PI) / 180;
   const sinPhi = Math.sin(phi);
   const k = (1 + sinPhi) / (1 - sinPhi);
-  const mu = Math.tan(phi);
+  const mu = Math.tan(phi) * (Number.isFinite(muScale) ? muScale : 1);
   const chi = Math.min(1, Math.max(0, criticality));
   const cohesion = Math.max(0, cohesionPa);
   let sigmaHeff;

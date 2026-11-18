@@ -1,0 +1,19 @@
+{
+  "schema": "mars-explorer-offline-run/v1",
+  "example": true,
+  "label": "EXAMPLE grid — not a VPLanet or thermomechanical result. Do not cite these numbers.",
+  "source": "Hand-written so the loader, the interpolation, and the threshold warning can be exercised. The values are round and physically meaningless.",
+  "axes": ["impactor_diameter_m", "water_fraction"],
+  "outputs": ["dynamo_on", "regime", "time_to_onset_yr", "duration_yr", "magnetic_moment_Am2", "standoff_over_rp"],
+  "runs": [
+    {"impactor_diameter_m": 1000, "water_fraction": 0, "dynamo_on": false, "regime": "none", "time_to_onset_yr": null, "duration_yr": null, "magnetic_moment_Am2": 0, "standoff_over_rp": 1},
+    {"impactor_diameter_m": 1000, "water_fraction": 0.5, "dynamo_on": false, "regime": "none", "time_to_onset_yr": null, "duration_yr": null, "magnetic_moment_Am2": 0, "standoff_over_rp": 1},
+    {"impactor_diameter_m": 1000, "water_fraction": 1, "dynamo_on": false, "regime": "slip", "time_to_onset_yr": null, "duration_yr": null, "magnetic_moment_Am2": 0, "standoff_over_rp": 1},
+    {"impactor_diameter_m": 10000, "water_fraction": 0, "dynamo_on": false, "regime": "slip", "time_to_onset_yr": null, "duration_yr": null, "magnetic_moment_Am2": 1e18, "standoff_over_rp": 1.05},
+    {"impactor_diameter_m": 10000, "water_fraction": 0.5, "dynamo_on": false, "regime": "slip", "time_to_onset_yr": null, "duration_yr": null, "magnetic_moment_Am2": 2e18, "standoff_over_rp": 1.08},
+    {"impactor_diameter_m": 10000, "water_fraction": 1, "dynamo_on": false, "regime": "lid", "time_to_onset_yr": null, "duration_yr": null, "magnetic_moment_Am2": 3e18, "standoff_over_rp": 1.1},
+    {"impactor_diameter_m": 100000, "water_fraction": 0, "dynamo_on": true, "regime": "dynamo", "time_to_onset_yr": 1000000, "duration_yr": 5000000, "magnetic_moment_Am2": 1e23, "standoff_over_rp": 3},
+    {"impactor_diameter_m": 100000, "water_fraction": 0.5, "dynamo_on": true, "regime": "dynamo", "time_to_onset_yr": 800000, "duration_yr": 6000000, "magnetic_moment_Am2": 2e23, "standoff_over_rp": 3.5},
+    {"impactor_diameter_m": 100000, "water_fraction": 1, "dynamo_on": true, "regime": "dynamo", "time_to_onset_yr": 500000, "duration_yr": 8000000, "magnetic_moment_Am2": 3e23, "standoff_over_rp": 4}
+  ]
+}
