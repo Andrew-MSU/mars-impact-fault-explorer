@@ -139,6 +139,42 @@ button.active {
 .sw-near { background: var(--near); }
 .sw-fail { background: var(--fail); }
 .sw-cave { background: var(--cave); }
+.sw-weak { background: #f2c64e; }
+.sw-impact { background: #f2d36b; }
+.sw-anti { background: #7eb6ff; }
+
+#app[data-mode="local"] .global-only { display: none !important; }
+#app[data-mode="global"] .local-only { display: none !important; }
+#app[data-mode="global"] .results { max-height: 62%; }
+#app[data-mode="global"] .plots { grid-template-columns: 1fr; }
+
+.modes { display: flex; gap: 0.35rem; }
+
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin-top: 0.3rem; }
+.compare-3 { grid-template-columns: 1fr 1fr 1fr; }
+.compare-col h3, .results h3, .offline h3 {
+  font-size: 0.78rem;
+  margin: 0.55rem 0 0.2rem;
+}
+.banner {
+  background: #efe2c0;
+  color: #3c362e;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  margin: 0.35rem 0;
+}
+dialog.about {
+  max-width: 40rem;
+  border: 0;
+  border-radius: 8px;
+  padding: 1rem 1.15rem 0.8rem;
+  background: var(--paper);
+  color: var(--ink);
+}
+dialog.about h2 { font-family: Palatino, Georgia, serif; margin: 0 0 0.4rem; }
+dialog.about p, dialog.about li { font-size: 0.9rem; line-height: 1.4; }
+dialog.about::backdrop { background: rgba(20, 17, 14, 0.5); }
 
 .plots {
   display: grid;

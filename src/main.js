@@ -13,7 +13,12 @@ import {
 import { LOCAL_RADIUS_M, onsetDiameter, prepareGrid, repeatedImpacts, runImpact, stressHistory, sweepDiameters } from "./model/scenario.js";
 import { logSpace } from "./model/physics.js";
 import { createView, makeProjector } from "./scene.js";
-import { drawDepth, drawSeries, drawSweep } from "./plots.js";
+import { drawDepth, drawRegime, drawSeries, drawSweep } from "./plots.js";
+import { GLOBAL_AUX, buildGlobalParams, creepEnds } from "./globalAux.js";
+import { assessGlobal, evaluateCore, prepareFaults, regimeMap, smallestProtective, withWater } from "./model/globalScenario.js";
+import { interpolateOffline } from "./model/globalPhysics.js";
+import { createGlobe } from "./globe.js";
+import { renderGlobalResults } from "./globalResults.js";
 
 const REGIONS = regionFile.regions;
 const YEAR_S = 365.25 * 24 * 3600;
@@ -34,6 +39,7 @@ const AUX = {
   interval_years: { name: "Repeat interval", value: 1e6, min: 1e3, max: 1e8, units: "years", log: true, source: "Scenario input for the repeated-impact series." },
   n_events: { name: "Number of impacts", value: 12, min: 2, max: 24, units: "events", step: 1, source: "Scenario input for the repeated-impact series." },
   exaggeration: { name: "Vertical exaggeration", value: 12, min: 1, max: 40, units: "display only", source: "Display only. It does not enter the stress calculation." },
+  ...GLOBAL_AUX,
 };
 
 const CATEGORY_ORDER = ["Rheology", "Creep", "Thermal", "Fault geometry", "Crustal structure", "VPLanet / interior"];
@@ -47,16 +53,21 @@ app.innerHTML = `
   <header class="top">
     <div class="brand">
       <h1>Mars impact fault explorer</h1>
-      <p>Wheeler Feer · Andrew Laskowski, Montana State University · first-order reactivation sandbox</p>
+      <p>Wheeler Feer · Andrew Laskowski, Montana State University · first-order sandbox</p>
     </div>
     <div class="top-controls">
-      <div class="regions" id="regions"></div>
+      <div class="modes">
+        <button type="button" data-mode="local">Local</button>
+        <button type="button" data-mode="global">Basin &amp; Global</button>
+      </div>
+      <div class="regions local-only" id="regions"></div>
       <div class="epochs">
         <button type="button" data-epoch="present">Present day</button>
         <button type="button" data-epoch="early">Early Mars</button>
       </div>
     </div>
     <div class="actions">
+      <button type="button" id="about-open">About</button>
       <button type="button" id="reset">Reset</button>
       <button type="button" id="share">Copy link</button>
       <button type="button" id="export-json">Export JSON</button>
@@ -66,23 +77,35 @@ app.innerHTML = `
   <div class="workspace">
     <div class="stage">
       <div class="viewport">
-        <canvas id="view"></canvas>
-        <div class="legend">
+        <canvas id="view" class="local-only"></canvas>
+        <canvas id="globe" class="global-only"></canvas>
+        <div class="legend local-only">
           <div><span class="sw-stable"></span>stable</div>
           <div><span class="sw-near"></span>near failure</div>
           <div><span class="sw-fail"></span>reactivated</div>
           <div><span class="sw-cave"></span>inside cavity</div>
         </div>
+        <div class="legend global-only">
+          <div><span class="sw-stable"></span>stable</div>
+          <div><span class="sw-near"></span>near failure</div>
+          <div><span class="sw-fail"></span>reactivated</div>
+          <div><span class="sw-cave"></span>inside cavity</div>
+          <div><span class="sw-weak"></span>weak zone</div>
+          <div><span class="sw-impact"></span>impact</div>
+          <div><span class="sw-anti"></span>antipode</div>
+        </div>
         <div class="hud">
-          <span>Click the terrain to place the impact. Drag to orbit.</span>
+          <span class="local-only">Click the terrain to place the impact. Drag to orbit.</span>
+          <span class="global-only">Click the globe to place the impact. Drag to orbit. Gold faults are the weak zone.</span>
           <button type="button" id="camera">Reset camera</button>
-          <label><input type="checkbox" id="subsurface" checked /> Subsurface cutaway</label>
+          <label class="local-only"><input type="checkbox" id="subsurface" checked /> Subsurface cutaway</label>
         </div>
       </div>
       <div class="plots">
-        <section class="plot"><h2>CFS vs depth, closest regime fault</h2><canvas id="depth-plot"></canvas></section>
-        <section class="plot"><h2>Reactivated fraction within 250 km</h2><canvas id="sweep-plot"></canvas></section>
-        <section class="plot"><h2>Repeated impacts: stress and area</h2><canvas id="series-plot"></canvas></section>
+        <section class="plot local-only"><h2>CFS vs depth, closest regime fault</h2><canvas id="depth-plot"></canvas></section>
+        <section class="plot local-only"><h2>Reactivated fraction within 250 km</h2><canvas id="sweep-plot"></canvas></section>
+        <section class="plot local-only"><h2>Repeated impacts: stress and area</h2><canvas id="series-plot"></canvas></section>
+        <section class="plot global-only"><h2>Regime map: impactor size (horizontal) vs speed (vertical). Blue slips, gold breaks the lid, red turns a protective dynamo on.</h2><canvas id="regime-plot"></canvas></section>
       </div>
     </div>
     <aside class="sidebar">
@@ -90,6 +113,19 @@ app.innerHTML = `
       <div class="controls" id="controls"></div>
     </aside>
   </div>
+  <dialog id="about" class="about">
+    <h2>What this is asking</h2>
+    <p>The question is what kind of impact it takes to generate a protective Martian geodynamo, on whatever timescale the physics produces. One impact has two pathways.</p>
+    <ol>
+      <li><strong>Slow, structural.</strong> Faults cascade, link into a weak zone, and may start subduction. Cold lithosphere reaches the core-mantle boundary, core heat flow rises, and a dynamo can turn on.</li>
+      <li><strong>Fast, core-direct.</strong> The impact changes the spin and stirs the liquid core (the mechanism in Le Bars et al. 2011 for the Moon). Heating the core top can instead suppress a dynamo (Roberts et al. 2009).</li>
+    </ol>
+    <p>The engineered comparison is an artificial magnetic shield at Mars–Sun L1 (Green et al. 2017). That concept stands the solar wind off upstream of the planet. This page does not turn their 1–2 T source into a planetary dipole. It is a different geometry.</p>
+    <p>A field counts as protective only for atmosphere retention: the magnetopause stays above the upper atmosphere at nominal and storm solar-wind pressure, and the moment is past the cusp-escape peak in Gunell et al. (2018), where a weak field can increase loss. Earth's moment is a comparison only. In that paper, escape past the peak falls back toward the unmagnetized rate rather than to zero.</p>
+    <p>The core baseline is a fully liquid, well-mixed metallic core about 1650 km in radius under a ~150 km molten silicate layer (Samuel et al. 2023; Khan et al. 2023). Khan's layer density rules out a stable iron layer on top of the core. Wheeler's spreadsheet flags 1830 km (Stähler et al. 2021) as the VPLanet baseline. That is a preset here, not the default. A 613 km solid inner core (Bi et al. 2025) is the other preset.</p>
+    <p>Basin &amp; Global is a first-order browser estimate. The authoritative thermal history is the offline VPLanet / thermomechanical model. Choose a file under data/offline_runs to interpolate it. The shipped EXAMPLE file is not science. Equations, what is not interactive, and the assumptions to review are in MODEL.md.</p>
+    <form method="dialog"><button value="close">Close</button></form>
+  </dialog>
 `;
 
 const regionHost = document.querySelector("#regions");
@@ -101,12 +137,26 @@ for (const region of REGIONS) {
   regionHost.appendChild(button);
 }
 
+app.dataset.mode = state.mode || "local";
+
 const view = createView(document.querySelector("#view"), {
   onPick(point) {
     state.impact = point;
     schedule(true);
   },
 });
+
+const globe = createGlobe(document.querySelector("#globe"), {
+  onPick(point) {
+    state.impact = point;
+    schedule(true);
+  },
+});
+
+const offlineFiles = Object.entries(import.meta.glob("../data/offline_runs/*.json", { eager: true })).map(([path, mod]) => ({
+  id: path.split("/").pop(),
+  catalog: mod.default,
+}));
 
 document.querySelectorAll("[data-epoch]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -145,7 +195,23 @@ document.querySelector("#share").addEventListener("click", async () => {
 });
 document.querySelector("#export-json").addEventListener("click", () => downloadJson());
 document.querySelector("#export-csv").addEventListener("click", () => downloadCsv());
-document.querySelector("#camera").addEventListener("click", () => view.resetCamera());
+document.querySelector("#camera").addEventListener("click", () => {
+  if (state.mode === "global") globe.resetCamera();
+  else view.resetCamera();
+});
+document.querySelector("#about-open").addEventListener("click", () => document.querySelector("#about").showModal());
+document.querySelectorAll("[data-mode]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.mode = button.dataset.mode === "global" ? "global" : "local";
+    app.dataset.mode = state.mode;
+    if (state.mode === "global") {
+      globe.resize();
+      loadGlobalFaults();
+    }
+    syncControls();
+    schedule(true);
+  });
+});
 document.querySelector("#subsurface").addEventListener("change", (event) => {
   state.showSubsurface = event.target.checked;
   paintView();
@@ -178,6 +244,11 @@ function createState() {
     selectedFaultId: null,
     showSubsurface: true,
     dipSource: DEFAULT_DIP_SOURCE,
+    mode: "local",
+    seed: "mapped",
+    support: "isostatic",
+    radioMode: "bsm",
+    offlineId: "none",
     values,
     aux,
   };
@@ -260,7 +331,163 @@ function schedule(immediate) {
   heavyTimer = setTimeout(() => compute(true), immediate ? 30 : 180);
 }
 
+let globalFeatures = null;
+let globalPrepared = null;
+let globalLoading = false;
+
+function loadGlobalFaults() {
+  if (globalPrepared || globalLoading) return;
+  globalLoading = true;
+  const host = document.querySelector("#results");
+  if (host && state.mode === "global") host.innerHTML = "<p>Loading the SIM 3292 catalog…</p>";
+  fetch(`${import.meta.env.BASE_URL}faults/sim3292_global.geojson`)
+    .then((response) => {
+      if (!response.ok) throw new Error(`catalog ${response.status}`);
+      return response.json();
+    })
+    .then((data) => {
+      globalFeatures = data.features || [];
+      globalPrepared = prepareFaults(globalFeatures);
+      globe.setFaults(globalFeatures);
+      globalLoading = false;
+      schedule(true);
+    })
+    .catch(() => {
+      globalLoading = false;
+      const node = document.querySelector("#results");
+      if (node) node.innerHTML = "<p>The global SIM 3292 file did not load.</p>";
+    });
+}
+
+function computeGlobal(heavy) {
+  if (!globalPrepared) {
+    loadGlobalFaults();
+    return;
+  }
+  const params = buildGlobalParams(state, catalog);
+  params.resolveDip = (fault) => {
+    if (fault.dipDeg != null) return fault.dipDeg;
+    const regionId = focusRegionId(fault.lon, fault.lat);
+    return resolveDip({
+      regionId: regionId || state.regionId,
+      source: regionId ? state.dipSource : "literature",
+      kinematics: fault.kinematics,
+    }).dipDeg;
+  };
+  params.resolveAzimuth = (fault) => resolveDipAzimuth({
+    strikeDeg: fault.strikeDeg,
+    regionId: focusRegionId(fault.lon, fault.lat),
+    source: state.dipSource,
+    kinematics: fault.kinematics,
+    explicitAzimuthDeg: fault.explicitAzimuthDeg,
+  }).dipAzimuthDeg;
+  const result = assessGlobal(globalPrepared, params, { detail: true });
+  const ends = creepEnds(state);
+  let dry = latest?.dry || null;
+  let wet = latest?.wet || null;
+  let map = latest?.map || null;
+  let smallest = latest?.smallest || null;
+  if (heavy) {
+    const dryParams = withWater(params, 0, ends.dry, ends.wet);
+    const wetParams = withWater(params, 1, ends.dry, ends.wet);
+    const dryRun = assessGlobal(globalPrepared, dryParams, { detail: false });
+    const wetRun = assessGlobal(globalPrepared, wetParams, { detail: false });
+    dry = summarizeSide(dryRun, dryParams);
+    wet = summarizeSide(wetRun, wetParams);
+    const diameters = logSpace(1e3, 4e5, 7);
+    const velocities = [6000, 10000, 15000, 22000];
+    map = regimeMap(globalPrepared, params, diameters, velocities);
+    const background = assessGlobal(globalPrepared, { ...params, includeImpact: false }, { detail: false });
+    smallest = {
+      background: background.core.protective,
+      ...smallestProtective(globalPrepared, params, {
+        diameters: logSpace(1e3, 4e5, 5),
+        velocities: [8000, 15000],
+        angles: [30, 90],
+        locations: searchLocations(params),
+      }),
+    };
+  }
+  const pathway = {
+    qSlabWm2: result.subduction.qSlabWm2,
+    slabOnsetYears: result.subduction.slabOnsetYears,
+    slabDurationYears: result.subduction.slabDurationYears,
+    subductionInitiates: result.subduction.initiates,
+  };
+  const mass = parameter("M_core");
+  const sourced = { ...params, includeImpact: true, massKg: result.source.massKg, coupledJ: result.source.coupledJ };
+  const cores = {
+    bml: evaluateCore({ ...sourced, coreRadiusM: state.values.R_core_BML * 1000, bmlM: 150e3, innerRadiusM: 0, coreMassKg: mass.min }, pathway),
+    stahler: evaluateCore({ ...sourced, coreRadiusM: state.values.R_core_std * 1000, bmlM: 0, innerRadiusM: 0, coreMassKg: mass.value }, pathway),
+    inner: evaluateCore({ ...sourced, coreRadiusM: state.values.R_core_BML * 1000, bmlM: 150e3, innerRadiusM: 613e3, coreMassKg: mass.min }, pathway),
+  };
+  const offlineCatalog = offlineFiles.find((file) => file.id === state.offlineId)?.catalog;
+  const offline = state.offlineId === "none" || !offlineCatalog
+    ? { available: false }
+    : interpolateOffline(offlineCatalog, {
+        impactor_diameter_m: state.aux.diameter_m,
+        water_fraction: state.aux.water_fraction,
+      });
+  latest = { mode: "global", result, dry, wet, map, smallest, params };
+  renderGlobalResults(document.querySelector("#results"), {
+    result,
+    dry,
+    wet,
+    cores,
+    smallest,
+    offline,
+    faultCount: globalPrepared.length,
+    density: result.core.density,
+    impact: state.impact,
+    antipode: result.antipode,
+  });
+  globe.show({
+    statuses: result.statuses,
+    impactLon: state.impact.lon,
+    impactLat: state.impact.lat,
+    antipodeLon: result.antipode.lon,
+    antipodeLat: result.antipode.lat,
+  });
+  drawRegime(document.querySelector("#regime-plot"), map, {
+    diameterM: state.aux.diameter_m,
+    velocityMs: state.aux.velocity_m_s,
+  });
+  writeUrl();
+}
+
+function summarizeSide(run, sideParams) {
+  return {
+    regime: run.regime,
+    lambda: sideParams.lambda,
+    friction: sideParams.frictionFactor,
+    subduction: run.subduction.index,
+    protective: run.core.protective,
+    moment: run.core.momentAm2,
+    eta: run.viscosity.etaPaS,
+  };
+}
+
+function focusRegionId(lon, lat) {
+  const region = REGIONS.find((item) => lon >= item.west && lon <= item.east && lat >= item.south && lat <= item.north);
+  return region ? region.id : null;
+}
+
+function searchLocations(params) {
+  return [
+    { name: "Clicked site", lon: params.lon, lat: params.lat },
+    { name: "Hellas", lon: 70.5, lat: -42.4 },
+    { name: "Isidis", lon: 87, lat: 12.9 },
+    { name: "Argyre", lon: -43.3, lat: -49.7 },
+    { name: "Valles Marineris", lon: -70.2, lat: -9.2 },
+    { name: "Tharsis center", lon: params.tharsisLon, lat: params.tharsisLat },
+  ];
+}
+
 function compute(heavy) {
+  if (state.mode === "global") {
+    computeGlobal(heavy);
+    return;
+  }
   const region = currentRegion();
   const loaded = cache.get(region.id);
   if (!loaded) return;
@@ -513,7 +740,7 @@ function buildControls() {
   host.append(group("Impact scenario", "These are scenario inputs. They are not columns in the parameter sheet.", auxBlock([
     "diameter_m", "velocity_m_s", "density_impactor", "angle_deg", "efficiency",
   ]), true));
-  const place = group("Where and how often", "Click the terrain, or set a distance from a mapped fault. The series uses the repeat interval. Changing region or dip source loads that combination's dip.", `
+  const place = group("Where and how often", "Local mode: click the terrain, or set a distance from a mapped fault. The dip source is the same control Basin & Global uses. Inside Valles Marineris, Cerberus Fossae, and Isidis it applies that source's dip. Faults outside those windows use the literature dips.", `
     <div class="row">
       <header><label for="fault-select">Reference fault</label></header>
       <select id="fault-select"></select>
@@ -555,7 +782,7 @@ function buildControls() {
   for (const category of CATEGORY_ORDER) {
     const parameters = catalog.parameters.filter((item) => item.category === category);
     const note = category === "VPLanet / interior"
-      ? "Exported for a later VPLanet run. The fault calculation does not read these."
+      ? "Local mode exports these and does not use them. Basin & Global reads core radius presets, core mass, CMB temperature, U/Th/K, mantle mass, and the mantle heat flux."
       : category === "Thermal"
         ? "The epoch toggle chooses which of T_s, q_m, H, and Z_BDT is active. Both columns stay editable."
         : category === "Fault geometry"
@@ -565,8 +792,182 @@ function buildControls() {
     for (const item of parameters) body.append(parameterRow(item));
     host.append(group(category, note, body, category !== "VPLanet / interior" && category !== "Creep"));
   }
+  appendGlobalControls(host);
   host.append(assumptions());
   wireControls();
+  wireGlobal();
+}
+
+function appendGlobalControls(host) {
+  const water = group("Water", "Basin & Global only. The slider blends the sheet's dry and wet diabase, the two pore-pressure ends, and clay friction. The creep dropdown above is the local-mode viscosity.", `
+    <div class="row-line">
+      <button type="button" id="water-dry">Dry</button>
+      <button type="button" id="water-wet">Wet</button>
+    </div>
+  `, true);
+  water.classList.add("global-only");
+  water.append(auxBlock(["water_fraction", "lambda_dry", "lambda_wet", "clay_reduction"]));
+  host.append(water);
+
+  const shell = group("Thin-shell stress", "Tharsis plus the four basins. Isostatic support is extension under a load. Flexural flips the signs. Set the magnitudes to 0 to see the impact alone. Rebound = 1 removes the loads.", `
+    <div class="row"><header><label for="support">Support</label></header>
+      <select id="support"><option value="isostatic">Isostatic / membrane</option><option value="flexural">Flexural (signs flipped)</option></select>
+      <p class="meta">A smooth cap-load shape, not Banerdt's spherical-harmonic solution. The magnitude sliders are the free parameters.</p></div>
+    <div class="row"><header><label for="global-regime">Andersonian regime added to the shell</label></header>
+      <select id="global-regime"><option value="normal">Normal (extension)</option><option value="thrust">Thrust (compression)</option></select>
+      <p class="meta">Same control as local mode. Criticality still scales this uniform field. It is added on top of the shell, so lower one of them if everything is already failed.</p></div>
+  `, false);
+  shell.classList.add("global-only");
+  shell.append(auxBlock([
+    "tharsis_mpa", "tharsis_lon", "tharsis_lat", "tharsis_radius_deg", "rebound_fraction",
+    "hellas_unload_mpa", "isidis_unload_mpa", "argyre_unload_mpa", "utopia_unload_mpa",
+    "hellas_mascon_mpa", "isidis_mascon_mpa", "argyre_mascon_mpa", "utopia_mascon_mpa",
+    "antipode_peak", "antipode_width_deg", "static_cutoff_km",
+  ]));
+  host.append(shell);
+
+  const cascade = group("Cascade and weak zone", "Failed faults shed stress onto neighbors, then connected failures become a weak zone. Valles Marineris can be treated as one candidate plate boundary (Yin 2012) instead of clustering only the faults that fail.", `
+    <div class="row"><header><label for="seed">Weak-zone seed</label></header>
+      <select id="seed"><option value="mapped">Mapped faults that fail</option><option value="valles_marineris">Valles Marineris as a plate boundary</option></select>
+      <p class="meta">Yin (2012, doi:10.1130/L192.1) is the candidate-boundary choice. The default uses only faults the cascade reactivates.</p></div>
+  `, false);
+  cascade.classList.add("global-only");
+  cascade.append(auxBlock([
+    "transfer_fraction", "transfer_exponent", "transfer_range_km", "cascade_passes", "cascade_stress_drop_mpa",
+    "link_distance_km", "damage_rate", "heal_years", "damage_age_years", "te_km", "lid_length_factor", "ductile_fraction",
+  ]));
+  host.append(cascade);
+
+  const forces = group("Subduction force balance", "Driving forces over the strength and buoyancy of the weakened lid. Index ≥ 1 initiates subduction. Presets set depletion and eclogite fraction.", `
+    <div class="row-line">
+      <button type="button" data-lith="depleted">Depleted</button>
+      <button type="button" data-lith="fertile">Fertile</button>
+      <button type="button" data-lith="eclogite">Eclogitized</button>
+    </div>
+    <p class="meta">Depleted subtracts 50 kg/m³. Fertile subtracts nothing. Eclogitized keeps the depletion and sets half the crust to the eclogite density. All three are starting points, not inversions.</p>
+  `, false);
+  forces.classList.add("global-only");
+  forces.append(auxBlock([
+    "h_lith_km", "plume_fraction", "slab_velocity_cmyr", "rho_mantle", "depletion_kgm3", "eclogite_fraction", "eclogite_density", "cp_rock",
+  ]));
+  host.append(forces);
+
+  const core = group("Core and dynamo", "First-order CMB heat flow versus the adiabatic threshold, then a magnetic moment and a magnetopause. The authoritative version is the offline model. Core conductivity is not in Wheeler's sheet.", `
+    <div class="row-line">
+      <button type="button" data-core="bml">1650 km + melt</button>
+      <button type="button" data-core="stahler">1830 km homogeneous</button>
+      <button type="button" data-core="inner">613 km inner core</button>
+    </div>
+    <p class="meta">1650 km is the Samuel / Khan baseline and copies R_core_BML plus the sheet's BML mass (the bottom of the M_core range, 1.17×10²³ kg) and a 150 km molten layer. 1830 km is Stähler et al. (2021), the value Wheeler's spreadsheet flags as the VPLanet baseline, with the sheet's homogeneous mass and no molten layer. The inner-core button sets 613 km (Bi et al. 2025, ±67 km) inside the 1650 km core. It does not fill in compositional flux.</p>
+    <div class="row"><header><label for="radio-mode">Radiogenic budget</label></header>
+      <select id="radio-mode"><option value="bsm">Bulk silicate U/Th/K on M_mantle</option><option value="split">Crustal H plus depleted-mantle U/Th/K</option></select></div>
+  `, true);
+  core.classList.add("global-only");
+  core.append(auxBlock([
+    "core_radius_km", "bml_km", "inner_core_km", "k_core", "alpha_core", "cp_core", "bml_transfer",
+    "secular_fraction", "q_comp_mw", "beta_dynamo", "radio_scale", "dipole_fraction",
+  ]));
+  host.append(core);
+
+  const fast = group("Fast core pathway", "Spin stirring can turn a dynamo on. Core-top heating can turn a thermal dynamo off. Both fractions are assumptions.", "", false);
+  fast.classList.add("global-only");
+  fast.append(auxBlock([
+    "spin_coupling", "spin_threshold", "ohmic_fraction", "spin_duration_yr", "core_heat_fraction", "heated_layer_km",
+    "mars_mass_kg", "moi_factor", "sol_seconds",
+  ]));
+  host.append(fast);
+
+  const shield = group("Atmosphere retention", "The moment must clear the exobase at nominal and storm pressure and sit past the Gunell cusp peak. Earth's moment is only a comparison.", "", false);
+  shield.classList.add("global-only");
+  shield.append(auxBlock(["exobase_km", "p_sw_npa", "storm_factor", "gunell_peak_Am2"]));
+  host.append(shield);
+
+  const offline = group("Offline model", "JSON files in data/offline_runs are interpolated when you select one. The browser estimate stays on screen either way. EXAMPLE is not a model result.", `
+    <div class="row"><header><label for="offline-file">Offline file</label></header>
+      <select id="offline-file"><option value="none">Browser estimate only</option></select>
+      <p class="meta">Sharp thresholds are not interpolated. If neighboring runs disagree on dynamo on/off or on the regime, those fields are left blank and the page says so.</p></div>
+  `, false);
+  offline.classList.add("global-only");
+  host.append(offline);
+  const offlineSelect = offline.querySelector("#offline-file");
+  for (const file of offlineFiles) {
+    const option = document.createElement("option");
+    option.value = file.id;
+    option.textContent = file.catalog?.example ? `${file.id} (example, not science)` : file.id;
+    offlineSelect.append(option);
+  }
+}
+
+function wireGlobal() {
+  document.querySelector("#water-dry").addEventListener("click", () => {
+    state.aux.water_fraction = 0;
+    syncControls();
+    schedule(true);
+  });
+  document.querySelector("#water-wet").addEventListener("click", () => {
+    state.aux.water_fraction = 1;
+    syncControls();
+    schedule(true);
+  });
+  document.querySelectorAll("[data-core]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const mass = parameter("M_core");
+      if (button.dataset.core === "bml") {
+        state.aux.core_radius_km = state.values.R_core_BML;
+        state.aux.bml_km = 150;
+        state.aux.inner_core_km = 0;
+        state.values.M_core = mass.min;
+      } else if (button.dataset.core === "stahler") {
+        state.aux.core_radius_km = state.values.R_core_std;
+        state.aux.bml_km = 0;
+        state.aux.inner_core_km = 0;
+        state.values.M_core = mass.value;
+      } else {
+        state.aux.core_radius_km = state.values.R_core_BML;
+        state.aux.bml_km = 150;
+        state.aux.inner_core_km = 613;
+        state.values.M_core = mass.min;
+      }
+      syncControls();
+      schedule(true);
+    });
+  });
+  document.querySelectorAll("[data-lith]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.lith === "fertile") {
+        state.aux.depletion_kgm3 = 0;
+        state.aux.eclogite_fraction = 0;
+      } else if (button.dataset.lith === "eclogite") {
+        state.aux.depletion_kgm3 = 50;
+        state.aux.eclogite_fraction = 0.5;
+      } else {
+        state.aux.depletion_kgm3 = 50;
+        state.aux.eclogite_fraction = 0;
+      }
+      syncControls();
+      schedule(true);
+    });
+  });
+  document.querySelector("#support").addEventListener("change", (event) => {
+    state.support = event.target.value;
+    schedule(true);
+  });
+  document.querySelector("#global-regime").addEventListener("change", (event) => {
+    state.regime = event.target.value;
+    schedule(true);
+  });
+  document.querySelector("#seed").addEventListener("change", (event) => {
+    state.seed = event.target.value;
+    schedule(true);
+  });
+  document.querySelector("#radio-mode").addEventListener("change", (event) => {
+    state.radioMode = event.target.value;
+    schedule(true);
+  });
+  document.querySelector("#offline-file").addEventListener("change", (event) => {
+    state.offlineId = event.target.value;
+    schedule(false);
+  });
 }
 
 function dipSourceBlock() {
@@ -676,6 +1077,7 @@ function assumptions() {
         <li>The crust is a flat elastic half-space. Topography changes the drawing and the overburden depth, not the Boussinesq geometry. The Moho and BDT are drawn parallel to the local surface at the single regional thickness.</li>
         <li>Viscous decay uses a Maxwell time from the selected creep law at the background differential stress, or η0 if that mode is selected. Cold shallow rock essentially does not relax.</li>
         <li>Failure is reported only down to the brittle-ductile transition. Nothing below the BDT is called reactivated.</li>
+        <li>Basin &amp; Global is a separate first-order estimate: a thin-shell load, a fault cascade, a subduction index, and a parameterized dynamo. It is not VPLanet. The assumptions and the quantities that are not interactive are in MODEL.md.</li>
       </ul>
       <p>Sheet references: ${references.references.map((item) => item.citation).join("; ")}.</p>
     </div>
@@ -687,7 +1089,7 @@ function wireControls() {
   document.querySelectorAll("[data-aux], [data-key]").forEach((row) => {
     const slider = row.querySelector("[data-slider]");
     const number = row.querySelector("[data-number]");
-    const logFor = (spec) => Boolean(spec.log || (spec.min > 0 && spec.max / spec.min > 80));
+    const logFor = (spec) => spec.log === true || (spec.log !== false && spec.min > 0 && spec.max / spec.min > 80);
     const write = (value) => {
       const spec = specFor(row);
       const clamped = Math.min(spec.max, Math.max(spec.min, value));
@@ -764,8 +1166,12 @@ function toSlider(value, spec, log) {
 }
 
 function syncControls() {
+  app.dataset.mode = state.mode;
   document.querySelectorAll("[data-epoch]").forEach((button) => {
     button.classList.toggle("active", button.dataset.epoch === state.epoch);
+  });
+  document.querySelectorAll("[data-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.mode === state.mode);
   });
   document.querySelectorAll("[data-region]").forEach((button) => {
     button.classList.toggle("active", button.dataset.region === state.regionId);
@@ -775,12 +1181,22 @@ function syncControls() {
   const cohesion = document.querySelector("#cohesion");
   const creep = document.querySelector("#creep");
   if (regime) regime.value = state.regime;
+  const globalRegime = document.querySelector("#global-regime");
+  const support = document.querySelector("#support");
+  const seed = document.querySelector("#seed");
+  const radioMode = document.querySelector("#radio-mode");
+  const offlineFile = document.querySelector("#offline-file");
+  if (globalRegime) globalRegime.value = state.regime;
+  if (support) support.value = state.support;
+  if (seed) seed.value = state.seed;
+  if (radioMode) radioMode.value = state.radioMode;
+  if (offlineFile) offlineFile.value = state.offlineId;
   if (modulus) modulus.value = state.modulus;
   if (cohesion) cohesion.value = state.cohesion;
   if (creep) creep.value = state.creepMode;
   document.querySelectorAll("[data-aux], [data-key]").forEach((row) => {
     const spec = specFor(row);
-    const log = Boolean(spec.log || (spec.min > 0 && spec.max / spec.min > 80));
+    const log = spec.log === true || (spec.log !== false && spec.min > 0 && spec.max / spec.min > 80);
     reflect(row, spec, log);
   });
   const dipSelect = document.querySelector("#dip-source");
@@ -900,6 +1316,11 @@ function writeUrl() {
     impact: state.impact,
     fault: state.selectedFaultId,
     showSubsurface: state.showSubsurface,
+    mode: state.mode,
+    seed: state.seed,
+    support: state.support,
+    radioMode: state.radioMode,
+    offlineId: state.offlineId,
     overrides,
     aux,
   };
@@ -925,6 +1346,11 @@ function applyUrl(target) {
     if (payload.impact) target.impact = payload.impact;
     if (payload.fault) target.selectedFaultId = payload.fault;
     if (typeof payload.showSubsurface === "boolean") target.showSubsurface = payload.showSubsurface;
+    if (payload.mode === "global" || payload.mode === "local") target.mode = payload.mode;
+    if (payload.seed === "mapped" || payload.seed === "valles_marineris") target.seed = payload.seed;
+    if (payload.support === "isostatic" || payload.support === "flexural") target.support = payload.support;
+    if (payload.radioMode === "bsm" || payload.radioMode === "split") target.radioMode = payload.radioMode;
+    if (typeof payload.offlineId === "string") target.offlineId = payload.offlineId;
     for (const [key, value] of Object.entries(payload.overrides || {})) {
       if (key in target.values && Number.isFinite(value)) target.values[key] = value;
     }
@@ -948,6 +1374,14 @@ function downloadJson() {
 
 function downloadCsv() {
   if (!latest) return;
+  if (latest.mode === "global") {
+    const lines = ["diameter_m,velocity_m_s,regime,protective,fraction_failed,subduction_index,moment_Am2"];
+    for (const row of latest.map || []) {
+      lines.push([row.diameterM, row.velocityMs, row.regime, row.protective, row.fractionFailed, row.subductionIndex, row.momentAm2].join(","));
+    }
+    download("mars-impact-regime-map.csv", lines.join("\n"), "text/csv");
+    return;
+  }
   const lines = ["section,diameter_m,coupled_J,magnitude,fraction_immediate,fraction_static"];
   for (const row of latest.sweep || []) {
     lines.push(["sweep", row.diameterM, row.coupledJ, row.magnitude, row.fractionRegime, row.fractionRegimeStatic].join(","));
@@ -961,6 +1395,37 @@ function downloadCsv() {
 }
 
 function exportPayload() {
+  if (latest?.mode === "global") {
+    const result = latest.result;
+    return {
+      app: "mars-impact-fault-explorer",
+      version: "0.2.0",
+      generated: new Date().toISOString(),
+      mode: "global",
+      epoch: state.epoch,
+      regime: state.regime,
+      seed: state.seed,
+      support: state.support,
+      radioMode: state.radioMode,
+      impact: state.impact,
+      parameters: catalog.parameters.map((item) => ({
+        key: item.key,
+        value: state.values[item.key],
+        units: item.units,
+      })),
+      auxiliary: state.aux,
+      source: result.source,
+      outcome: result.regime,
+      weakZone: result.weakZone,
+      subduction: {
+        index: result.subduction.index,
+        initiates: result.subduction.initiates,
+        qSlabWm2: result.subduction.qSlabWm2,
+      },
+      core: result.core,
+      note: "Browser estimate. Not a VPLanet run.",
+    };
+  }
   const result = latest.result;
   return {
     app: "mars-impact-fault-explorer",

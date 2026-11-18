@@ -239,3 +239,52 @@ export function drawDepth(canvas, profile) {
   ctx.fillText("0", xOf(0) - 4, height - 8);
   ctx.fillText(`${max.toFixed(1)} MPa`, Math.min(xOf(max) - 20, width - 50), height - 8);
 }
+
+const REGIME_COLOR = {
+  none: "#d5cbb8",
+  slip: "#2f6f9f",
+  lid: "#b5811c",
+  dynamo: "#b64022",
+};
+
+/** Diameter–velocity regime map. `rows` come from regimeMap. */
+export function drawRegime(canvas, rows, current) {
+  const { ctx, width, height } = setup(canvas);
+  const pad = { l: 46, r: 12, t: 16, b: 28 };
+  ctx.fillStyle = "#6d6458";
+  ctx.font = "11px Segoe UI, sans-serif";
+  if (!rows?.length) {
+    ctx.fillText("Regime map computes with the other plots.", pad.l, pad.t + 16);
+    return;
+  }
+  const diameters = [...new Set(rows.map((row) => row.diameterM))].sort((a, b) => a - b);
+  const velocities = [...new Set(rows.map((row) => row.velocityMs))].sort((a, b) => a - b);
+  const plotW = width - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  const cellW = plotW / diameters.length;
+  const cellH = plotH / velocities.length;
+  const lookup = new Map(rows.map((row) => [`${row.diameterM}|${row.velocityMs}`, row]));
+  velocities.forEach((velocity, rowIndex) => {
+    diameters.forEach((diameter, colIndex) => {
+      const row = lookup.get(`${diameter}|${velocity}`);
+      ctx.fillStyle = REGIME_COLOR[row?.regime] || "#eee";
+      ctx.fillRect(pad.l + colIndex * cellW, pad.t + (velocities.length - 1 - rowIndex) * cellH, cellW - 1, cellH - 1);
+    });
+  });
+  ctx.fillStyle = "#6d6458";
+  ctx.fillText(formatDiameter(diameters[0]), pad.l, height - 8);
+  ctx.fillText(formatDiameter(diameters[diameters.length - 1]), width - pad.r - 36, height - 8);
+  ctx.fillText(`${Math.round(velocities[0] / 1000)} km/s`, 2, pad.t + plotH);
+  ctx.fillText(`${Math.round(velocities[velocities.length - 1] / 1000)}`, 2, pad.t + 10);
+  if (current?.diameterM && current?.velocityMs) {
+    const dIndex = diameters.reduce((best, value, index) =>
+      Math.abs(Math.log(value) - Math.log(current.diameterM)) < Math.abs(Math.log(diameters[best]) - Math.log(current.diameterM))
+        ? index
+        : best, 0);
+    const vIndex = velocities.reduce((best, value, index) =>
+      Math.abs(value - current.velocityMs) < Math.abs(velocities[best] - current.velocityMs) ? index : best, 0);
+    ctx.strokeStyle = "#1d1914";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(pad.l + dIndex * cellW + 1, pad.t + (velocities.length - 1 - vIndex) * cellH + 1, cellW - 3, cellH - 3);
+  }
+}

@@ -13,6 +13,7 @@
     "doi": "10.3133/sim3292",
     "citation": "Tanaka, K.L., Skinner, J.A., Jr., Dohm, J.M., Irwin, R.P., III, Kolb, E.J., Fortezzo, C.M., Platz, T., Michael, G.G., and Hare, T.M., 2014, Geologic map of Mars: U.S. Geological Survey Scientific Investigations Map 3292, doi:10.3133/sim3292.",
     "api": "https://astrogeology.usgs.gov/pygeoapi/collections/mars/global_geologic_map/structure/items",
-    "notes": "Lines are real SIM 3292 structures, simplified and clipped. They are graben axes and wrinkle-ridge crests, not surveyed fault planes. Dip azimuth defaults to the right-hand normal of the digitized trace. Kinematics are assigned as documented in each feature's kinematics_basis."
+    "notes": "Lines are real SIM 3292 structures, simplified and clipped. They are graben axes and wrinkle-ridge crests, not surveyed fault planes. Dip azimuth defaults to the right-hand normal of the digitized trace. Kinematics are assigned as documented in each feature's kinematics_basis.",
+    "global_file": "public/faults/sim3292_global.geojson is the same layer, planet-wide, keeping tectonic graben axes, pit-crater chains, and wrinkle ridges at least 50 km long. Built by scripts/build_global_faults.py."
   }
 }
