@@ -7,14 +7,16 @@ import {
   DIP_CAVEAT,
   DIP_FIT_SUMMARY,
   DIP_SOURCES,
+  dipCaveat,
   resolveDip,
   resolveDipAzimuth,
 } from "./model/dips.js";
-import { LOCAL_RADIUS_M, onsetDiameter, prepareGrid, repeatedImpacts, runImpact, stressHistory, sweepDiameters } from "./model/scenario.js";
+import { LOCAL_RADIUS_M, onsetDiameter, prepareGrid, refineOnsetDiameter, repeatedImpacts, runImpact, stressHistory, sweepDiameters } from "./model/scenario.js";
 import { logSpace } from "./model/physics.js";
 import { createView, makeProjector } from "./scene.js";
 import { drawDepth, drawRegime, drawSeries, drawSweep } from "./plots.js";
-import { GLOBAL_AUX, buildGlobalParams, creepEnds } from "./globalAux.js";
+import { EARLY_TE_KM, GLOBAL_AUX, PRESENT_TE_KM, buildGlobalParams, creepEnds } from "./globalAux.js";
+import { GLOSSARY } from "./glossary.js";
 import { assessGlobal, evaluateCore, prepareFaults, regimeMap, smallestProtective, withWater } from "./model/globalScenario.js";
 import { interpolateOffline } from "./model/globalPhysics.js";
 import { createGlobe } from "./globe.js";
@@ -25,8 +27,8 @@ const YEAR_S = 365.25 * 24 * 3600;
 const ANORTHITE = { n: 3, A: 398 };
 
 const AUX = {
-  diameter_m: { name: "Impactor diameter", value: 1000, min: 30, max: 80000, units: "m", log: true, source: "Scenario input. Not in the spreadsheet." },
-  velocity_m_s: { name: "Impact velocity", value: 10000, min: 5000, max: 25000, units: "m/s", source: "Scenario input. Mars impact speeds are typically several to about 20 km/s." },
+  diameter_m: { name: "Impactor diameter", value: 1000, min: 30, max: 400000, units: "m", log: true, source: "Scenario input. Not in the spreadsheet. The regime map and the smallest-protective search use the same 1–400 km range. Values above 80 km are outside the point-load model's validity: an 80 km impactor is already about Mw 11–12 with a crater of order 1000 km." },
+  velocity_m_s: { name: "Impact velocity", value: 10000, min: 5000, max: 25000, units: "m/s", source: "Scenario input. The slider runs from 5 to 25 km/s. Typical Mars impact speeds are several km/s up to about 20 km/s; 20–25 km/s is the high end of that range." },
   density_impactor: { name: "Impactor density", value: 3000, min: 500, max: 8000, units: "kg/m³", source: "Scenario input. 3000 is a stony body; irons are near 8000 and cometary ice near 500." },
   angle_deg: { name: "Impact angle from horizontal", value: 45, min: 10, max: 90, units: "degrees", source: "Scenario input. 90° is vertical. 45° is the most probable impact angle." },
   efficiency: { name: "Seismic efficiency k", value: 1e-4, min: 1e-6, max: 1e-2, units: "E_seismic / E_coupled", log: true, source: "Schultz & Gault (1975). The slider spans the range discussed for planetary impacts, including Teanby & Wookey (2011)." },
@@ -36,9 +38,9 @@ const AUX = {
   lambda: { name: "Pore-pressure ratio λ", value: 0, min: 0, max: 0.8, units: "P / σ_v", source: "Model assumption. The present-day preset uses 0 (dry). The early-Mars preset sets 0.4." },
   criticality: { name: "Stress criticality χ", value: 0.85, min: 0, max: 1, units: "fraction of failure", source: "Model assumption. 1 means an optimally oriented fault is already at failure." },
   k_thermal: { name: "Crustal thermal conductivity", value: 2.5, min: 1.5, max: 4, units: "W/m/K", source: "Not in the spreadsheet. Mid-range basaltic conductivity used to turn heat flux into a geotherm." },
-  interval_years: { name: "Repeat interval", value: 1e6, min: 1e3, max: 1e8, units: "years", log: true, source: "Scenario input for the repeated-impact series." },
-  n_events: { name: "Number of impacts", value: 12, min: 2, max: 24, units: "events", step: 1, source: "Scenario input for the repeated-impact series." },
-  exaggeration: { name: "Vertical exaggeration", value: 12, min: 1, max: 40, units: "display only", source: "Display only. It does not enter the stress calculation." },
+  interval_years: { name: "Repeat interval", value: 1e6, min: 1e3, max: 1e8, units: "years", log: true, mode: "local", source: "Scenario input for the repeated-impact series." },
+  n_events: { name: "Number of impacts", value: 12, min: 2, max: 24, units: "events", step: 1, mode: "local", source: "Scenario input for the repeated-impact series." },
+  exaggeration: { name: "Vertical exaggeration", value: 12, min: 1, max: 40, units: "display only", step: 1, mode: "local", source: "Display only. It does not enter the stress calculation." },
   ...GLOBAL_AUX,
 };
 
@@ -68,6 +70,7 @@ app.innerHTML = `
     </div>
     <div class="actions">
       <button type="button" id="about-open">About</button>
+      <button type="button" id="glossary-open">Glossary</button>
       <button type="button" id="reset">Reset</button>
       <button type="button" id="share">Copy link</button>
       <button type="button" id="export-json">Export JSON</button>
@@ -105,15 +108,24 @@ app.innerHTML = `
         <section class="plot local-only"><h2>CFS vs depth, closest regime fault</h2><canvas id="depth-plot"></canvas></section>
         <section class="plot local-only"><h2>Reactivated fraction within 250 km</h2><canvas id="sweep-plot"></canvas></section>
         <section class="plot local-only"><h2>Repeated impacts: stress and area</h2><canvas id="series-plot"></canvas></section>
-        <section class="plot global-only"><h2>Regime map: impactor size (horizontal) vs speed (vertical). Blue slips, gold breaks the lid, red turns a protective dynamo on.</h2><canvas id="regime-plot"></canvas></section>
+        <section class="plot global-only"><h2>Regime map. Click a cell to set diameter and velocity.</h2><canvas id="regime-plot"></canvas><div id="regime-tip" class="regime-tip" hidden></div></section>
       </div>
     </div>
     <aside class="sidebar">
+      <div id="hint" class="hint">
+        <p>Start in <strong>Local</strong> to drop an impact on Valles Marineris, Cerberus Fossae, or Isidis. Switch to <strong>Basin &amp; Global</strong> to follow one impact through the whole fault catalog toward a possible dynamo. The card at the top of this column is the result. About explains how to read it, and Glossary defines CFS, Mw, Te, and the dynamo terms.</p>
+        <button type="button" id="hint-dismiss">Got it</button>
+      </div>
+      <div id="notice" class="notice" hidden></div>
       <section class="results" id="results"></section>
       <div class="controls" id="controls"></div>
     </aside>
   </div>
   <dialog id="about" class="about">
+    <h2>How to use this page</h2>
+    <p><strong>Local</strong> is one region at a time. The three regions are Valles Marineris (normal faults in the canyon system), Cerberus Fossae (young grabens in Elysium), and Isidis Planitia (a thin-crust basin whose mapped structures are thrusts and wrinkle ridges). Click the terrain to place the impact, or pick a reference fault and a distance. The headline is the fraction of that regime's fault area, within 250 km, that fails.</p>
+    <p><strong>Basin &amp; Global</strong> uses the same impact on the full SIM 3292 fault catalog. It asks whether failed faults link into a weak zone, whether that zone can break the elastic lid and start subduction, and whether the core then runs a dynamo. The globe is the whole planet. Local-only controls (the reference fault, the distance slider, and the repeated-impact series) are hidden here.</p>
+    <p>Read the result card first: the headline, Mw, crater size, and, in Basin &amp; Global, q_cmb against q_adiabatic. Open the details for the fault table. A negative CFS is still stable. Glossary defines the symbols. The regime map's outlined cell is the current diameter and velocity; click any cell to set those sliders.</p>
     <h2>What this is asking</h2>
     <p>The question is what kind of impact it takes to generate a protective Martian geodynamo, on whatever timescale the physics produces. One impact has two pathways.</p>
     <ol>
@@ -123,7 +135,14 @@ app.innerHTML = `
     <p>The engineered comparison is an artificial magnetic shield at Mars–Sun L1 (Green et al. 2017). That concept stands the solar wind off upstream of the planet. This page does not turn their 1–2 T source into a planetary dipole. It is a different geometry.</p>
     <p>A field counts as protective only for atmosphere retention: the magnetopause stays above the upper atmosphere at nominal and storm solar-wind pressure, and the moment is past the cusp-escape peak in Gunell et al. (2018), where a weak field can increase loss. Earth's moment is a comparison only. In that paper, escape past the peak falls back toward the unmagnetized rate rather than to zero.</p>
     <p>The core baseline is a fully liquid, well-mixed metallic core about 1650 km in radius under a ~150 km molten silicate layer (Samuel et al. 2023; Khan et al. 2023). Khan's layer density rules out a stable iron layer on top of the core. Wheeler's spreadsheet flags 1830 km (Stähler et al. 2021) as the VPLanet baseline. That is a preset here, not the default. A 613 km solid inner core (Bi et al. 2025) is the other preset.</p>
-    <p>Basin &amp; Global is a first-order browser estimate. The authoritative thermal history is the offline VPLanet / thermomechanical model. Choose a file under data/offline_runs to interpolate it. The shipped EXAMPLE file is not science. Equations, what is not interactive, and the assumptions to review are in MODEL.md.</p>
+    <p>Basin &amp; Global is a first-order browser estimate. The authoritative thermal history is the offline VPLanet / thermomechanical model. Choose an offline-run file to interpolate it. The shipped EXAMPLE file is not science. Equations, what is not interactive, and the assumptions to review are in MODEL.md.</p>
+    <form method="dialog"><button value="close">Close</button></form>
+  </dialog>
+  <dialog id="glossary" class="about">
+    <h2>Glossary</h2>
+    <dl class="glossary">
+      ${GLOSSARY.map((item) => `<dt>${item.term}</dt><dd><strong>${item.title}.</strong> ${item.text}</dd>`).join("")}
+    </dl>
     <form method="dialog"><button value="close">Close</button></form>
   </dialog>
 `;
@@ -159,14 +178,16 @@ const offlineFiles = Object.entries(import.meta.glob("../data/offline_runs/*.jso
 }));
 
 document.querySelectorAll("[data-epoch]").forEach((button) => {
-  button.addEventListener("click", () => {
-    state.epoch = button.dataset.epoch;
-    state.creepMode = state.epoch === "early" ? "wet_diabase" : "dry_diabase";
-    state.aux.lambda = state.epoch === "early" ? 0.4 : 0;
-    syncControls();
-    schedule(true);
-  });
+  button.addEventListener("click", () => applyEpoch(button.dataset.epoch, true));
 });
+document.querySelector("#glossary-open").addEventListener("click", () => document.querySelector("#glossary").showModal());
+document.querySelector("#hint-dismiss").addEventListener("click", () => {
+  document.querySelector("#hint").hidden = true;
+  try { sessionStorage.setItem("mife-hint", "1"); } catch { /* private mode */ }
+});
+try {
+  if (sessionStorage.getItem("mife-hint") === "1") document.querySelector("#hint").hidden = true;
+} catch { /* private mode */ }
 regionHost.addEventListener("click", (event) => {
   const button = event.target.closest("[data-region]");
   if (!button) return;
@@ -222,7 +243,9 @@ let token = 0;
 
 buildControls();
 syncControls();
+wireRegimeMap();
 let runTimer = 0;
+let lightTimer = 0;
 let heavyTimer = 0;
 let latest = null;
 
@@ -231,6 +254,8 @@ selectRegion(state.regionId, false);
 function createState() {
   const values = {};
   for (const parameter of catalog.parameters) values[parameter.key] = parameter.value;
+  const coreMass = catalog.parameters.find((item) => item.key === "M_core");
+  if (coreMass) values.M_core = coreMass.min;
   const aux = {};
   for (const [key, spec] of Object.entries(AUX)) aux[key] = spec.value;
   const next = {
@@ -245,6 +270,7 @@ function createState() {
     showSubsurface: true,
     dipSource: DEFAULT_DIP_SOURCE,
     mode: "local",
+    capAtMoho: true,
     seed: "mapped",
     support: "isostatic",
     radioMode: "bsm",
@@ -286,6 +312,8 @@ function currentRegion() {
 }
 
 function selectRegion(id, resetPlace) {
+  const previous = currentRegion();
+  const previousRegime = state.regime;
   state.regionId = id;
   const region = currentRegion();
   if (resetPlace) {
@@ -293,9 +321,64 @@ function selectRegion(id, resetPlace) {
     state.impact = { ...region.default_impact };
     state.selectedFaultId = null;
     applyDipDefaults(state);
+    const bits = [`${region.name} is now the region.`];
+    if (previousRegime !== region.regime_default) {
+      bits.push(`Andersonian regime set to ${region.regime_default}.`);
+    }
+    if (region.id === "isidis_planitia") {
+      bits.push("Reference structures are wrinkle ridges (thrusts). The impact moved to the Isidis default, so the distance from the reference fault changes. The dip is the low-confidence wrinkle-ridge flank unless the literature source is selected.");
+    } else if (previous?.id === "isidis_planitia") {
+      bits.push("Left the Isidis thrust / wrinkle-ridge setup. The impact moved to this region's default.");
+    } else {
+      bits.push("The impact moved to this region's default, and the reference fault will be the longest structure of the active regime.");
+    }
+    showNotice(bits.join(" "));
   }
   syncControls();
   loadRegion(region);
+}
+
+function applyEpoch(epoch, announce) {
+  const region = currentRegion();
+  const before = {
+    regime: state.regime,
+    fault: state.selectedFaultId,
+    lon: state.impact.lon,
+    lat: state.impact.lat,
+    te: state.aux.te_km,
+  };
+  state.epoch = epoch === "early" ? "early" : "present";
+  state.creepMode = state.epoch === "early" ? "wet_diabase" : "dry_diabase";
+  state.aux.lambda = state.epoch === "early" ? 0.4 : 0;
+  state.aux.te_km = state.epoch === "early" ? EARLY_TE_KM : PRESENT_TE_KM;
+  if (announce) {
+    const moved = before.regime !== state.regime
+      || before.fault !== state.selectedFaultId
+      || before.lon !== state.impact.lon
+      || before.lat !== state.impact.lat;
+    const lines = [
+      state.epoch === "early"
+        ? `Early Mars: pore pressure λ set to 0.4, creep set to wet diabase, and elastic thickness Te set to ${EARLY_TE_KM} km (McKenzie, Barnett & Yuan 2002 southern-hemisphere fit; it was ${before.te} km). The early thermal column (surface temperature, mantle heat flux, crustal heat production, and the 30 km BDT) is now active.`
+        : `Present day: λ set to 0, creep set to dry diabase, and Te set back to ${PRESENT_TE_KM} km. The present-day thermal column is active.`,
+    ];
+    if (region.id === "isidis_planitia") {
+      lines.push(moved
+        ? "Isidis also changed regime, reference fault, or impact location with this click."
+        : "Isidis stays the region. Its regime stays thrust and its reference structures stay wrinkle ridges. This button does not move the impact or change the reference fault.");
+    } else if (!moved) {
+      lines.push(`${region.name} stays the region. Regime, reference fault, and impact location are unchanged.`);
+    }
+    showNotice(lines.join(" "));
+  }
+  syncControls();
+  schedule(true);
+}
+
+function showNotice(text) {
+  const node = document.querySelector("#notice");
+  if (!node) return;
+  node.hidden = false;
+  node.textContent = text;
 }
 
 async function loadRegion(region) {
@@ -326,9 +409,15 @@ async function loadRegion(region) {
 
 function schedule(immediate) {
   cancelAnimationFrame(runTimer);
-  runTimer = requestAnimationFrame(() => compute(false));
+  clearTimeout(lightTimer);
   clearTimeout(heavyTimer);
-  heavyTimer = setTimeout(() => compute(true), immediate ? 30 : 180);
+  if (immediate) {
+    runTimer = requestAnimationFrame(() => compute(false));
+    heavyTimer = setTimeout(() => compute(true), 40);
+  } else {
+    lightTimer = setTimeout(() => compute(false), 200);
+    heavyTimer = setTimeout(() => compute(true), 500);
+  }
 }
 
 let globalFeatures = null;
@@ -382,6 +471,20 @@ function computeGlobal(heavy) {
     explicitAzimuthDeg: fault.explicitAzimuthDeg,
   }).dipAzimuthDeg;
   const result = assessGlobal(globalPrepared, params, { detail: true });
+  const baseline = assessGlobal(globalPrepared, { ...params, includeImpact: false }, { detail: false });
+  const baseIds = new Set(baseline.failedIds || []);
+  const nowIds = new Set(result.failedIds || []);
+  let changed = 0;
+  for (const id of new Set([...baseIds, ...nowIds])) {
+    if (baseIds.has(id) !== nowIds.has(id)) changed += 1;
+  }
+  const impactCompare = {
+    changed,
+    baselineRegime: baseline.regime,
+    baselineReactivated: baseline.reactivatedCount,
+    maxImpactMpa: (result.maxImpactDeltaCfs || 0) / 1e6,
+    backgroundMpa: (result.backgroundCfsAtMaxImpact || 0) / 1e6,
+  };
   const ends = creepEnds(state);
   let dry = latest?.dry || null;
   let wet = latest?.wet || null;
@@ -440,6 +543,7 @@ function computeGlobal(heavy) {
     density: result.core.density,
     impact: state.impact,
     antipode: result.antipode,
+    impactCompare,
   });
   globe.show({
     statuses: result.statuses,
@@ -525,7 +629,13 @@ function compute(heavy) {
         })
       : null;
   }
-  latest = { result, grid, spec, sweep, series, history, region, loaded };
+  const onsetRefined = heavy
+    ? {
+        immediate: refineOnsetDiameter(grid, spec.impact, material, "fractionLocal", { minM: 40, maxM: 400000 }),
+        staticOnly: refineOnsetDiameter(grid, spec.impact, material, "fractionLocalStatic", { minM: 40, maxM: 400000 }),
+      }
+    : latest?.onsetRefined || null;
+  latest = { result, grid, spec, sweep, series, history, region, loaded, onsetRefined };
   renderResults();
   paintView();
   paintPlots();
@@ -575,7 +685,7 @@ function buildSpec(region, featureCollection) {
       bdtM: state.values[`Z_BDT_${epoch}`] * parameter(`Z_BDT_${epoch}`).to_si,
     },
     creep,
-    sampling: { spacingM: 20000, depthSteps: 8 },
+    sampling: { spacingM: 20000, depthSteps: 8, capAtMoho: state.capAtMoho !== false },
     impact: {
       lon: state.impact.lon,
       lat: state.impact.lat,
@@ -669,18 +779,20 @@ function renderResults() {
   const segmentCount = latest.grid.segments.length;
   const fittedCount = latest.grid.segments.filter((segment) => segment.dipAzimuthSource === "measured").length;
   const pct = (value) => (value == null ? "—" : `${(value * 100).toFixed(1)}%`);
-  const onset = latest.sweep ? onsetDiameter(latest.sweep, "fractionLocal") : null;
-  const onsetStatic = latest.sweep ? onsetDiameter(latest.sweep, "fractionLocalStatic") : null;
+  const onset = latest.onsetRefined?.immediate?.diameterM ?? (latest.sweep ? onsetDiameter(latest.sweep, "fractionLocal") : null);
+  const onsetStatic = latest.onsetRefined?.staticOnly?.diameterM ?? (latest.sweep ? onsetDiameter(latest.sweep, "fractionLocalStatic") : null);
   const nearest = result.faults.length
     ? result.faults.reduce((best, fault) => (fault.minDistanceM < best.minDistanceM ? fault : best), result.faults[0])
     : null;
   const critical = result.critical;
   const host = document.querySelector("#results");
   host.innerHTML = `
+    <div class="result-card">
     <p class="tag">${region.name} · ${state.epoch === "early" ? "early Mars" : "present day"} · ${regimeName} regime · dip ${formatNumber(activeDip.dipDeg)}° · ${escapeHtml(sourceLabel)}${activeDip.lowConfidence ? " · low confidence" : ""}</p>
-    <p class="caveat">${escapeHtml(DIP_CAVEAT)}</p>
+    <p class="caveat">${escapeHtml(dipCaveat({ regionId: region.id, source: state.dipSource }))}</p>
     <h2>${verdict(result, regimeName)}</h2>
     <p class="verdict">${onsetText(onset, onsetStatic, regimeName)}</p>
+    ${extremeBanner(source, state.aux.diameter_m)}
     <dl class="metrics">
       ${metric("Moment magnitude", `Mw ${source.magnitude.toFixed(2)}`)}
       ${metric("Coupled energy", sci(source.coupledJ, "J"))}
@@ -694,7 +806,11 @@ function renderResults() {
       ${metric("Relaxation time", critical ? formatMaxwell(critical.tMaxwell) : "—")}
       ${metric("Critical depth", critical ? `${(critical.z / 1000).toFixed(1)} km on ${critical.faultName}` : "—")}
       ${metric("Impact", `${state.impact.lat.toFixed(2)}°, ${state.impact.lon.toFixed(2)}°`)}
+      ${metric("Fault depth limit", `${(latest.grid.depthLimitM / 1000).toFixed(1)} km (${latest.grid.capAtMoho ? "Moho cap on" : "Moho cap off"})`)}
     </dl>
+    </div>
+    <details class="result-details" open>
+    <summary>Fault table</summary>
     <table>
       <thead><tr><th>Fault</th><th>Type</th><th>km</th><th>Fail</th><th>CFS</th><th>Depths</th></tr></thead>
       <tbody>
@@ -708,7 +824,8 @@ function renderResults() {
         </tr>`).join("")}
       </tbody>
     </table>
-    <p class="meta">${fittedCount} of ${segmentCount} fault segments use a measured dip direction. The others use the right-hand normal of the trace. CFS is in MPa and includes the background deficit, so negative means still stable. The table shows the eight faults closest to failure.</p>
+    <p class="meta">${fittedCount} of ${segmentCount} fault segments use a measured dip direction. The others use the right-hand normal of the trace. CFS is in MPa and includes the background deficit, so negative means still stable. The table shows the eight faults closest to failure. Faults are sampled down to ${latest.grid.capAtMoho ? "the shallower of the BDT and this region's crust" : "the BDT, including below the Moho"}.</p>
+    </details>
   `;
 }
 
@@ -720,18 +837,37 @@ function verdict(result, regimeName) {
 }
 
 function onsetText(onset, onsetStatic, regimeName) {
-  if (!latest.sweep) return "Magnitude sweep is computing.";
-  const mag = (diameter) => {
-    const row = latest.sweep.find((item) => item.diameterM === diameter);
-    return row ? `Mw ${row.magnitude.toFixed(1)}` : "";
+  if (!latest.sweep && !latest.onsetRefined) return "Magnitude sweep is computing.";
+  const magOf = (kind, diameter) => {
+    const refined = latest.onsetRefined?.[kind];
+    if (refined?.diameterM && Math.abs(refined.diameterM - diameter) / diameter < 0.02 && Number.isFinite(refined.magnitude)) {
+      return `Mw ${refined.magnitude.toFixed(1)}`;
+    }
+    const row = latest.sweep?.find((item) => item.diameterM === diameter);
+    return row ? `Mw ${row.magnitude.toFixed(1)}` : (refined?.magnitude ? `Mw ${refined.magnitude.toFixed(1)}` : "");
   };
   const immediate = onset
-    ? `Immediate ${regimeName} reactivation begins at ${formatMeters(onset)} (${mag(onset)}).`
-    : `No immediate ${regimeName} reactivation inside the sweep (40 m to 60 km).`;
+    ? `Immediate ${regimeName} reactivation begins at an impactor diameter of ${formatMeters(onset)} (${magOf("immediate", onset)}).`
+    : `No immediate ${regimeName} reactivation from an impactor diameter of 40 m to 400 km.`;
   const sustained = onsetStatic
-    ? ` Static-only onset is ${formatMeters(onsetStatic)} (${mag(onsetStatic)}).`
-    : " Static stress alone does not reach failure inside the sweep.";
-  return immediate + sustained;
+    ? `Static-only onset is an impactor diameter of ${formatMeters(onsetStatic)} (${magOf("staticOnly", onsetStatic)}).`
+    : "Static stress alone does not reach failure from 40 m to 400 km.";
+  let note = "";
+  if (onset && onsetStatic) {
+    const ratio = Math.max(onset, onsetStatic) / Math.min(onset, onsetStatic);
+    if (ratio < 1.03) {
+      note = " The two diameters agree to within 3% after bisection, so the match is in the stresses: dynamic stress does not move the threshold here. It is not a coarse-grid artifact.";
+    } else {
+      note = " The two diameters were refined by bisection, so a gap between them is the dynamic stress, not the spacing of the sweep.";
+    }
+  }
+  return `${immediate} ${sustained}${note}`;
+}
+
+function extremeBanner(source, diameterM) {
+  const extreme = diameterM >= 80000 || source.finalM >= 1e6 || source.magnitude >= 11;
+  if (!extreme) return "";
+  return `<p class="banner">Beyond model validity. At 80 km the impactor is already about Mw 11–12 with a crater of order 1000 km. This case is Mw ${source.magnitude.toFixed(1)} and a ${(source.finalM / 1000).toFixed(0)} km crater. The point-load and seismic-efficiency calculation still runs; it is not a prediction.</p>`;
 }
 
 function buildControls() {
@@ -740,16 +876,18 @@ function buildControls() {
   host.append(group("Impact scenario", "These are scenario inputs. They are not columns in the parameter sheet.", auxBlock([
     "diameter_m", "velocity_m_s", "density_impactor", "angle_deg", "efficiency",
   ]), true));
-  const place = group("Where and how often", "Local mode: click the terrain, or set a distance from a mapped fault. The dip source is the same control Basin & Global uses. Inside Valles Marineris, Cerberus Fossae, and Isidis it applies that source's dip. Faults outside those windows use the literature dips.", `
-    <div class="row">
+  const place = group("Where and how often", "", `
+    <p class="group-note local-only">Click the terrain, or set a distance from a mapped fault.</p>
+    <p class="group-note global-only">Click the globe to place the impact. The reference fault and the distance slider are local-only and are hidden here.</p>
+    <div class="row local-only">
       <header><label for="fault-select">Reference fault</label></header>
       <select id="fault-select"></select>
     </div>
-    <div class="row">
+    <div class="row local-only">
       <header><label>Distance from the reference fault</label><span class="value" id="distance-readout"></span></header>
       <input id="distance" type="range" min="0" max="800" step="1" />
     </div>
-    <div class="row">
+    <div class="row local-only">
       <header><label for="regime">Andersonian regime</label></header>
       <select id="regime">
         <option value="normal">Normal (extension)</option>
@@ -775,6 +913,11 @@ function buildControls() {
         <option value="reference_viscosity">Mantle reference viscosity η0 everywhere</option>
       </select>
       <p class="meta">Anorthite uses the wet n and A quoted in the sheet note. Sliding Q_andesite toward the dry end does not replace those constants.</p></div>
+    <div class="row">
+      <header><label for="cap-moho">Cap faults at Moho</label></header>
+      <label class="check"><input id="cap-moho" type="checkbox" checked /> On</label>
+      <p class="meta">On by default. Faults are tested only down to the shallower of the BDT and the crust. Local mode uses that region's crust (Valles Marineris 45 km, Cerberus Fossae 35 km, Isidis 15 km). Basin &amp; Global uses the same regional crust inside those windows and the global crust (50 km) elsewhere. Off continues the grid to the BDT even below the Moho. Ductile continuation still applies only when failure reaches the BDT, so with the cap on and a Moho above the BDT that slider does nothing.</p>
+    </div>
     <div id="stress-aux"></div>
   `, true));
   document.querySelector("#stress-aux").append(auxBlock(["lambda", "criticality", "stress_drop_mpa", "excavation_fraction", "quality_factor", "k_thermal"]));
@@ -882,7 +1025,7 @@ function appendGlobalControls(host) {
   shield.append(auxBlock(["exobase_km", "p_sw_npa", "storm_factor", "gunell_peak_Am2"]));
   host.append(shield);
 
-  const offline = group("Offline model", "JSON files in data/offline_runs are interpolated when you select one. The browser estimate stays on screen either way. EXAMPLE is not a model result.", `
+  const offline = group("Offline model", "Offline-run files shipped with the page are interpolated when you select one. The browser estimate stays on screen either way. EXAMPLE is not a model result.", `
     <div class="row"><header><label for="offline-file">Offline file</label></header>
       <select id="offline-file"><option value="none">Browser estimate only</option></select>
       <p class="meta">Sharp thresholds are not interpolated. If neighboring runs disagree on dynamo on/off or on the regime, those fields are left blank and the page says so.</p></div>
@@ -899,6 +1042,10 @@ function appendGlobalControls(host) {
 }
 
 function wireGlobal() {
+  document.querySelector("#cap-moho").addEventListener("change", (event) => {
+    state.capAtMoho = event.target.checked;
+    schedule(true);
+  });
   document.querySelector("#water-dry").addEventListener("click", () => {
     state.aux.water_fraction = 0;
     syncControls();
@@ -981,7 +1128,7 @@ function dipSourceBlock() {
     <p class="meta" id="dip-fit-note"></p>
     <p class="caveat" id="dip-caveat"></p>
   `;
-  row.querySelector("#dip-caveat").textContent = DIP_CAVEAT;
+  row.querySelector("#dip-caveat").textContent = "";
   row.querySelector("#dip-fit-note").textContent = DIP_FIT_SUMMARY;
   return row;
 }
@@ -1018,7 +1165,7 @@ function auxBlock(keys) {
 function auxRow(key) {
   const spec = AUX[key];
   const row = document.createElement("div");
-  row.className = "row";
+  row.className = spec.mode ? `row ${spec.mode}-only` : "row";
   row.dataset.aux = key;
   row.innerHTML = `
     <header>
@@ -1092,7 +1239,7 @@ function wireControls() {
     const logFor = (spec) => spec.log === true || (spec.log !== false && spec.min > 0 && spec.max / spec.min > 80);
     const write = (value) => {
       const spec = specFor(row);
-      const clamped = Math.min(spec.max, Math.max(spec.min, value));
+      const clamped = snapToSpec(Math.min(spec.max, Math.max(spec.min, value)), spec);
       if (row.dataset.aux) state.aux[row.dataset.aux] = spec.step ? Math.round(clamped) : clamped;
       else state.values[row.dataset.key] = clamped;
       reflect(row, spec, logFor(spec));
@@ -1151,8 +1298,9 @@ function reflect(row, spec, log) {
   number.value = String(roundForInput(value));
   number.min = String(spec.min);
   number.max = String(spec.max);
-  number.step = spec.step ? String(spec.step) : "any";
-  row.querySelector("[data-readout]").textContent = `${formatNumber(value)} ${spec.units}`;
+  number.step = spec.step ? String(spec.step) : (spec.log ? "any" : String(linearStep(spec)));
+  row.querySelector("[data-readout]").textContent = withUnits(value, spec.units);
+  row.classList.toggle("extreme", row.dataset.aux === "diameter_m" && value >= 80000);
 }
 
 function fromSlider(t, spec, log) {
@@ -1199,6 +1347,8 @@ function syncControls() {
     const log = spec.log === true || (spec.log !== false && spec.min > 0 && spec.max / spec.min > 80);
     reflect(row, spec, log);
   });
+  const capMoho = document.querySelector("#cap-moho");
+  if (capMoho) capMoho.checked = state.capAtMoho !== false;
   const dipSelect = document.querySelector("#dip-source");
   if (dipSelect) dipSelect.value = state.dipSource;
   const dipNote = document.querySelector("#dip-source-note");
@@ -1207,6 +1357,8 @@ function syncControls() {
     const thrustDip = resolveDip({ regionId: state.regionId, source: state.dipSource, kinematics: "thrust" });
     dipNote.textContent = `Normal faults ${formatNumber(normalDip.dipDeg)}° (${normalDip.badge}). Thrust faults ${formatNumber(thrustDip.dipDeg)}° (${thrustDip.badge}).`;
   }
+  const dipCaveatNode = document.querySelector("#dip-caveat");
+  if (dipCaveatNode) dipCaveatNode.textContent = dipCaveat({ regionId: state.regionId, source: state.dipSource });
   const epoch = state.epoch === "early" ? "early" : "present";
   const region = currentRegion();
   document.querySelectorAll("[data-key]").forEach((row) => {
@@ -1317,6 +1469,7 @@ function writeUrl() {
     fault: state.selectedFaultId,
     showSubsurface: state.showSubsurface,
     mode: state.mode,
+    capAtMoho: state.capAtMoho !== false,
     seed: state.seed,
     support: state.support,
     radioMode: state.radioMode,
@@ -1347,6 +1500,7 @@ function applyUrl(target) {
     if (payload.fault) target.selectedFaultId = payload.fault;
     if (typeof payload.showSubsurface === "boolean") target.showSubsurface = payload.showSubsurface;
     if (payload.mode === "global" || payload.mode === "local") target.mode = payload.mode;
+    if (typeof payload.capAtMoho === "boolean") target.capAtMoho = payload.capAtMoho;
     if (payload.seed === "mapped" || payload.seed === "valles_marineris") target.seed = payload.seed;
     if (payload.support === "isostatic" || payload.support === "flexural") target.support = payload.support;
     if (payload.radioMode === "bsm" || payload.radioMode === "split") target.radioMode = payload.radioMode;
@@ -1360,6 +1514,9 @@ function applyUrl(target) {
     }
     for (const [key, value] of Object.entries(payload.aux || {})) {
       if (key in target.aux && Number.isFinite(value)) target.aux[key] = value;
+    }
+    if (!payload.aux || !Number.isFinite(payload.aux.te_km)) {
+      target.aux.te_km = target.epoch === "early" ? EARLY_TE_KM : PRESENT_TE_KM;
     }
   } catch {
     // A bad share link should not block the defaults.
@@ -1500,7 +1657,13 @@ function download(filename, text, type) {
 }
 
 function metric(name, value) {
-  return `<dt>${name}</dt><dd>${value}</dd>`;
+  const tips = {
+    "Moment magnitude": "From the seismic energy via Kanamori (1977). Not a measured earthquake.",
+    Mw: "From the seismic energy via Kanamori (1977). Not a measured earthquake.",
+  };
+  const tip = tips[name];
+  const label = tip ? `<abbr class="term" title="${escapeHtml(tip)}">${name}</abbr>` : name;
+  return `<dt>${label}</dt><dd>${value}</dd>`;
 }
 
 function sci(value, unit) {
@@ -1520,6 +1683,35 @@ function formatMaxwell(seconds) {
   if (years >= 1e6) return `${(years / 1e6).toFixed(2)} Myr`;
   if (years >= 1e3) return `${(years / 1e3).toFixed(1)} kyr`;
   return `${years.toFixed(0)} yr`;
+}
+
+function linearStep(spec) {
+  const span = Math.abs(spec.max - spec.min);
+  if (span > 500) return 1;
+  if (span > 50) return 0.1;
+  if (span > 5) return 0.01;
+  return 0.001;
+}
+
+function snapToSpec(value, spec) {
+  if (!Number.isFinite(value)) return spec.min;
+  let next = value;
+  if (spec.step) next = Math.round(value / spec.step) * spec.step;
+  else if (spec.log) next = Number(value.toPrecision(4));
+  else {
+    const step = linearStep(spec);
+    next = Math.round(value / step) * step;
+  }
+  return Math.min(spec.max, Math.max(spec.min, next));
+}
+
+function withUnits(value, units) {
+  const singular = Math.abs(value - 1) < 1e-9;
+  let label = units;
+  if (singular && units === "years") label = "year";
+  else if (singular && units === "events") label = "event";
+  else if (singular && units === "iterations") label = "iteration";
+  return `${formatNumber(value)} ${label}`.trim();
 }
 
 function formatNumber(value) {
@@ -1549,6 +1741,39 @@ function csvEscape(text) {
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
+}
+
+function wireRegimeMap() {
+  const canvas = document.querySelector("#regime-plot");
+  const tip = document.querySelector("#regime-tip");
+  if (!canvas || canvas.dataset.wired) return;
+  canvas.dataset.wired = "1";
+  const hit = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    return (canvas._regimeCells || []).find((cell) => x >= cell.x && x <= cell.x + cell.w && y >= cell.y && y <= cell.y + cell.h);
+  };
+  canvas.addEventListener("mousemove", (event) => {
+    const cell = hit(event);
+    if (!cell || !tip) {
+      if (tip) tip.hidden = true;
+      return;
+    }
+    const regime = cell.row?.regime || "none";
+    const names = { none: "no slip (beige)", slip: "faults slip", lid: "lid breaks", dynamo: "protective dynamo" };
+    tip.hidden = false;
+    tip.textContent = `${(cell.diameterM / 1000).toFixed(cell.diameterM >= 10000 ? 0 : 1)} km, ${(cell.velocityMs / 1000).toFixed(0)} km/s: ${names[regime] || regime}. Subduction index ${Number.isFinite(cell.row?.subductionIndex) ? cell.row.subductionIndex.toFixed(2) : "—"}. ${cell.outlined ? "This is the outlined cell, the one nearest the current sliders." : "Click to set the diameter and velocity sliders."}`;
+  });
+  canvas.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
+  canvas.addEventListener("click", (event) => {
+    const cell = hit(event);
+    if (!cell) return;
+    state.aux.diameter_m = cell.diameterM;
+    state.aux.velocity_m_s = cell.velocityMs;
+    syncControls();
+    schedule(false);
+  });
 }
 
 function toast(message) {

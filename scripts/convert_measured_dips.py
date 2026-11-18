@@ -95,6 +95,11 @@ def short_id(ref_layer: str) -> str:
     return ref_layer.split("_", 1)[0]
 
 
+def display_id(site_id: str) -> str:
+    # The source layer is spelled Mariners3. The user-facing name is Marineris.
+    return "Marineris3" if site_id == "Mariners3" else site_id
+
+
 def load_literature() -> dict[str, dict]:
     catalog = json.loads(PARAMETERS.read_text(encoding="utf-8"))
     by_key = {item["key"]: item for item in catalog["parameters"]}
@@ -369,7 +374,7 @@ def build_catalog() -> dict:
 
     vm = by_region["valles_marineris"]
     cf = by_region["cerberus_fossae"]
-    vm_phrase = ", ".join(f"{site['id']} {one_decimal(site['dip_deg'])}°" for site in vm)
+    vm_phrase = ", ".join(f"{display_id(site['id'])} {one_decimal(site['dip_deg'])}°" for site in vm)
     cf_phrase = ", ".join(
         (
             f"{site['id']} {one_decimal(site['dip_deg'])}° (recomputed; delivered as 90°)"

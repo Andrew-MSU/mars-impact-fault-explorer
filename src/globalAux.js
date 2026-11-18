@@ -4,10 +4,13 @@
  * Sheet quantities stay on state.values. Everything else is state.aux.
  */
 
+import regionFile from "../data/regions.json" with { type: "json" };
 import { MARS_GRAVITY, MARS_RADIUS_M } from "./model/physics.js";
 import { EARTH_MOMENT_AM2 } from "./model/globalPhysics.js";
 
-const assumption = "Assumption, not a spreadsheet value. The range is the interval Wheeler can explore.";
+const assumption = "Assumption, not a spreadsheet value. The slider is the range used to test the estimate.";
+export const PRESENT_TE_KM = 100;
+export const EARLY_TE_KM = 15;
 
 export const GLOBAL_AUX = {
   water_fraction: {
@@ -15,7 +18,7 @@ export const GLOBAL_AUX = {
     value: 0,
     min: 0,
     max: 1,
-    units: "0 dry → 1 wet",
+    units: "dry to wet",
     source: "Blends the sheet's dry and wet diabase (A, n, Q), λ_dry to λ_wet, and the clay friction reduction. Dry and Wet buttons set the ends.",
   },
   lambda_dry: {
@@ -74,20 +77,20 @@ export const GLOBAL_AUX = {
     units: "degrees",
     source: `${assumption} Angular radius of the cap load. The rise is several tens of degrees across.`,
   },
-  hellas_unload_mpa: { name: "Hellas unloading", value: 5, min: 0, max: 150, units: "MPa", source: `${assumption} Negative cap load. Footprint is the basin diameter in data/basins.json.` },
+  hellas_unload_mpa: { name: "Hellas unloading", value: 5, min: 0, max: 150, units: "MPa", source: `${assumption} Negative cap load. The footprint is that basin's catalog diameter.` },
   isidis_unload_mpa: { name: "Isidis unloading", value: 5, min: 0, max: 150, units: "MPa", source: `${assumption} Negative cap load.` },
   argyre_unload_mpa: { name: "Argyre unloading", value: 5, min: 0, max: 150, units: "MPa", source: `${assumption} Negative cap load.` },
   utopia_unload_mpa: { name: "Utopia unloading", value: 5, min: 0, max: 150, units: "MPa", source: `${assumption} Negative cap load.` },
-  hellas_mascon_mpa: { name: "Hellas mascon", value: 0, min: 0, max: 80, units: "MPa", source: "Positive fill load. Hellas is not flagged as a mascon basin (Neumann et al. 2004). Default 0." },
+  hellas_mascon_mpa: { name: "Hellas mascon", value: 0, min: 0, max: 80, units: "MPa", source: "Positive fill load. Hellas is not flagged as a mascon basin (Neumann et al. 2004)." },
   isidis_mascon_mpa: { name: "Isidis mascon", value: 10, min: 0, max: 80, units: "MPa", source: `${assumption} Isidis is a mascon basin. 10 MPa is a starting magnitude, not a gravity inversion.` },
-  argyre_mascon_mpa: { name: "Argyre mascon", value: 0, min: 0, max: 80, units: "MPa", source: "Default 0. Argyre is not given the Isidis/Utopia mascon flag." },
+  argyre_mascon_mpa: { name: "Argyre mascon", value: 0, min: 0, max: 80, units: "MPa", source: "Argyre is not given the Isidis/Utopia mascon flag." },
   utopia_mascon_mpa: { name: "Utopia mascon", value: 10, min: 0, max: 80, units: "MPa", source: `${assumption} Utopia is a mascon basin. 10 MPa is a starting magnitude.` },
   rebound_fraction: {
     name: "Load relaxation",
     value: 0,
     min: 0,
     max: 1,
-    units: "0 fresh → 1 relaxed away",
+    units: "fresh to relaxed",
     source: `${assumption} Multiplies Tharsis and basin loads by (1 − this). It is not a viscous time integration.`,
   },
   antipode_peak: {
@@ -207,15 +210,15 @@ export const GLOBAL_AUX = {
     min: 0,
     max: 1,
     units: "of (Te − BDT)",
-    source: `${assumption} Default 0: brittle faults stop at the BDT. 1: reaching the BDT is treated as cutting a deeper Te.`,
+    source: `${assumption} 0: brittle faults stop at the BDT. 1: a fault that fails all the way to the BDT is treated as cutting on down toward Te. The slider does nothing when the Moho cap stops faults above the BDT, because those faults never reach the BDT. Present-day crust is thinner than the 100 km BDT, so the slider is idle on the present-day cap. Early Mars has a 30 km BDT inside the global crust, so a fault that fails to the BDT can use it.`,
   },
   te_km: {
     name: "Elastic lithosphere thickness Te",
-    value: 100,
+    value: PRESENT_TE_KM,
     min: 10,
     max: 300,
     units: "km",
-    source: `${assumption} Not the sheet's BDT. The present-day BDT on the sheet is 100 km, which is why the default matches it. Early-Mars BDT is 30 km.`,
+    source: `Present day stays at ${PRESENT_TE_KM} km, in line with the sheet's present-day BDT and with the thicker lithosphere under younger loads (McGovern et al. 2002, doi:10.1029/2002JE001854, find Te declining as the load gets older). Early Mars sets ${EARLY_TE_KM} km from the 14.5 km southern-hemisphere fit in McKenzie, Barnett and Yuan (2002, doi:10.1016/S0012-821X(01)00555-6) for that old, heavily cratered crust. This is a flexure thickness, not the sheet's 30 km early BDT. The epoch button applies it.`,
   },
   h_lith_km: {
     name: "Lithosphere thickness in the force balance",
@@ -353,7 +356,7 @@ export const GLOBAL_AUX = {
     min: 0,
     max: 30,
     units: "mW/m²",
-    source: `${assumption} Added to the thermal CMB flux. Default 0. The 613 km preset does not fill this in.`,
+    source: `${assumption} Added to the thermal CMB flux. The 613 km preset does not fill this in.`,
   },
   beta_dynamo: {
     name: "Dynamo field prefactor β",
@@ -387,7 +390,7 @@ export const GLOBAL_AUX = {
     max: 1,
     log: true,
     units: "fraction of the spin",
-    source: `${assumption} Stirring turns on above this. Not a published Mars threshold.`,
+    source: `${assumption} Stirring turns on when the impact's |ΔΩ/Ω| reaches this. Le Bars et al. (2011) describe an elliptical instability of the core, not a 2% spin-change threshold; 0.02 is not their number. Inside the old 80 km diameter cap the ratio stays near 10⁻³ and cannot reach 0.02. Only impactors near the 400 km end of the slider, at high speed and a shallow angle, can cross it, and those impacts are flagged as outside the model's validity. The result line shows the ratio this impact actually produces.`,
   },
   ohmic_fraction: {
     name: "Stirring energy in the field",
@@ -553,6 +556,15 @@ export function buildGlobalParams(state, catalog) {
     crustalHeatWm3: v[`H_${epoch}`],
     kCrust: a.k_thermal,
     crustM: si("d_crust_global"),
+    crustRegions: regionFile.regions.map((region) => ({
+      id: region.id,
+      west: region.west,
+      east: region.east,
+      south: region.south,
+      north: region.north,
+      crustM: state.values[region.crust_key] * row(region.crust_key).to_si,
+    })),
+    capAtMoho: state.capAtMoho !== false,
     bdtM: si(`Z_BDT_${epoch}`),
     heatRatio: v.H_present > 0 ? v[`H_${epoch}`] / v.H_present : 1,
     planetRadiusM: MARS_RADIUS_M,
@@ -635,6 +647,6 @@ export function buildGlobalParams(state, catalog) {
     gunellPeakAm2: a.gunell_peak_Am2,
     earthMomentAm2: EARTH_MOMENT_AM2,
     includeImpact: true,
-    depthSteps: 4,
+    depthSteps: 8,
   };
 }

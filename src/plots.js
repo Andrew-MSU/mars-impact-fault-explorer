@@ -27,7 +27,7 @@ function formatYears(years) {
 
 export function drawSweep(canvas, rows, currentDiameter, onset) {
   const { ctx, width, height } = setup(canvas);
-  const pad = { l: 42, r: 12, t: 16, b: 28 };
+  const pad = { l: 46, r: 12, t: 22, b: 32 };
   const plotW = width - pad.l - pad.r;
   const plotH = height - pad.t - pad.b;
   ctx.fillStyle = "#6d6458";
@@ -88,7 +88,7 @@ export function drawSweep(canvas, rows, currentDiameter, onset) {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = "#8c2f18";
-    ctx.fillText("onset", Math.min(x + 3, width - 48), pad.t + 10);
+    ctx.fillText("onset", Math.min(Math.max(pad.l, x - 16), width - pad.r - 36), pad.t - 4);
   }
   if (currentDiameter) {
     const x = xOf(currentDiameter);
@@ -100,23 +100,29 @@ export function drawSweep(canvas, rows, currentDiameter, onset) {
   }
 
   ctx.fillStyle = "#6d6458";
+  ctx.fillText("Impactor diameter", pad.l, height - 4);
   const ticks = [diameters[0], diameters[Math.floor(diameters.length / 2)], diameters[diameters.length - 1]];
   for (const tick of ticks) {
-    ctx.fillText(formatDiameter(tick), xOf(tick) - 14, height - 8);
+    ctx.fillText(formatDiameter(tick), Math.min(xOf(tick) - 12, width - pad.r - 28), height - 16);
   }
+  ctx.save();
+  ctx.translate(12, pad.t + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("Failed area", 0, 0);
+  ctx.restore();
   ctx.fillStyle = "#b64022";
-  ctx.fillRect(width - pad.r - 108, pad.t + 2, 10, 3);
+  ctx.fillRect(pad.l, 6, 10, 3);
   ctx.fillStyle = "#1d1914";
-  ctx.fillText("immediate", width - pad.r - 94, pad.t + 8);
+  ctx.fillText("immediate", pad.l + 14, 10);
   ctx.fillStyle = "#1f6a62";
-  ctx.fillRect(width - pad.r - 108, pad.t + 12, 10, 3);
+  ctx.fillRect(pad.l + 78, 6, 10, 3);
   ctx.fillStyle = "#1d1914";
-  ctx.fillText("static", width - pad.r - 94, pad.t + 18);
+  ctx.fillText("static only", pad.l + 92, 10);
 }
 
 export function drawSeries(canvas, history, fractions, onsetYears) {
   const { ctx, width, height } = setup(canvas);
-  const pad = { l: 44, r: 36, t: 16, b: 26 };
+  const pad = { l: 52, r: 44, t: 22, b: 32 };
   const plotW = width - pad.l - pad.r;
   const plotH = height - pad.t - pad.b;
   ctx.font = "11px Segoe UI, sans-serif";
@@ -140,9 +146,13 @@ export function drawSeries(canvas, history, fractions, onsetYears) {
   ctx.lineTo(width - pad.r, yOf(0));
   ctx.stroke();
   ctx.fillStyle = "#6d6458";
-  ctx.fillText("0", 8, yOf(0) + 3);
-  ctx.fillText(`${cmax.toFixed(1)}`, 4, pad.t + 8);
-  ctx.fillText("MPa", 4, pad.t + 20);
+  ctx.fillText("0", 28, yOf(0) + 3);
+  ctx.fillText(cmax.toFixed(1), 16, pad.t + 4);
+  ctx.save();
+  ctx.translate(11, pad.t + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("CFS (MPa)", 0, 0);
+  ctx.restore();
 
   ctx.beginPath();
   history.points.forEach((point, index) => {
@@ -182,17 +192,22 @@ export function drawSeries(canvas, history, fractions, onsetYears) {
     ctx.setLineDash([]);
   }
   ctx.fillStyle = "#6d6458";
-  ctx.fillText("0", pad.l - 4, height - 8);
-  ctx.fillText(formatYears(tmax), width - pad.r - 36, height - 8);
+  ctx.fillText("0", pad.l, height - 16);
+  ctx.fillText(formatYears(tmax), width - pad.r - 28, height - 16);
+  ctx.fillText("Time", pad.l + plotW / 2 - 12, height - 4);
   ctx.fillStyle = "#b64022";
-  ctx.fillText("CFS", pad.l, height - 8);
+  ctx.fillRect(pad.l, 6, 10, 3);
+  ctx.fillStyle = "#1d1914";
+  ctx.fillText("CFS (MPa)", pad.l + 14, 10);
   ctx.fillStyle = "#1f6a62";
-  ctx.fillText("area fraction", pad.l + 36, height - 8);
+  ctx.fillRect(pad.l + 86, 6, 10, 3);
+  ctx.fillStyle = "#1d1914";
+  ctx.fillText("failed area", pad.l + 100, 10);
 }
 
 export function drawDepth(canvas, profile) {
   const { ctx, width, height } = setup(canvas);
-  const pad = { l: 42, r: 12, t: 16, b: 26 };
+  const pad = { l: 48, r: 14, t: 16, b: 32 };
   const plotW = width - pad.l - pad.r;
   const plotH = height - pad.t - pad.b;
   ctx.font = "11px Segoe UI, sans-serif";
@@ -233,11 +248,17 @@ export function drawDepth(canvas, profile) {
     ctx.fill();
   }
   ctx.fillStyle = "#6d6458";
-  ctx.fillText("0 km", 4, pad.t + 8);
-  ctx.fillText(`${(zmax / 1000).toFixed(0)} km`, 2, pad.t + plotH);
-  ctx.fillText(`${min.toFixed(1)}`, xOf(min) - 8, height - 8);
-  ctx.fillText("0", xOf(0) - 4, height - 8);
-  ctx.fillText(`${max.toFixed(1)} MPa`, Math.min(xOf(max) - 20, width - 50), height - 8);
+  ctx.fillText("0 km", 8, pad.t + 10);
+  ctx.fillText(`${(zmax / 1000).toFixed(0)} km`, 4, pad.t + plotH);
+  ctx.save();
+  ctx.translate(11, pad.t + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("Depth", 0, 0);
+  ctx.restore();
+  const zeroX = Math.min(Math.max(xOf(0), pad.l), width - pad.r - 8);
+  ctx.fillText(min.toFixed(1), pad.l, height - 16);
+  ctx.fillText("0", zeroX - 4, height - 16);
+  ctx.fillText("CFS (MPa)", Math.min(pad.l + plotW / 2 - 24, width - 70), height - 4);
 }
 
 const REGIME_COLOR = {
@@ -247,14 +268,22 @@ const REGIME_COLOR = {
   dynamo: "#b64022",
 };
 
-/** Diameter–velocity regime map. `rows` come from regimeMap. */
+const REGIME_LABEL = {
+  none: "No slip",
+  slip: "Faults slip",
+  lid: "Lid breaks",
+  dynamo: "Protective dynamo",
+};
+
+/** Diameter–velocity regime map. Clicking a cell is handled by the page via canvas._regimeCells. */
 export function drawRegime(canvas, rows, current) {
   const { ctx, width, height } = setup(canvas);
-  const pad = { l: 46, r: 12, t: 16, b: 28 };
+  const pad = { l: 58, r: 118, t: 18, b: 36 };
   ctx.fillStyle = "#6d6458";
   ctx.font = "11px Segoe UI, sans-serif";
+  canvas._regimeCells = [];
   if (!rows?.length) {
-    ctx.fillText("Regime map computes with the other plots.", pad.l, pad.t + 16);
+    ctx.fillText("Regime map computes after the first result.", pad.l, pad.t + 16);
     return;
   }
   const diameters = [...new Set(rows.map((row) => row.diameterM))].sort((a, b) => a - b);
@@ -264,27 +293,73 @@ export function drawRegime(canvas, rows, current) {
   const cellW = plotW / diameters.length;
   const cellH = plotH / velocities.length;
   const lookup = new Map(rows.map((row) => [`${row.diameterM}|${row.velocityMs}`, row]));
+  let outline = null;
+  if (current?.diameterM && current?.velocityMs) {
+    outline = {
+      dIndex: diameters.reduce((best, value, index) =>
+        Math.abs(Math.log(value) - Math.log(current.diameterM)) < Math.abs(Math.log(diameters[best]) - Math.log(current.diameterM))
+          ? index
+          : best, 0),
+      vIndex: velocities.reduce((best, value, index) =>
+        Math.abs(value - current.velocityMs) < Math.abs(velocities[best] - current.velocityMs) ? index : best, 0),
+    };
+  }
   velocities.forEach((velocity, rowIndex) => {
     diameters.forEach((diameter, colIndex) => {
       const row = lookup.get(`${diameter}|${velocity}`);
+      const x = pad.l + colIndex * cellW;
+      const y = pad.t + (velocities.length - 1 - rowIndex) * cellH;
       ctx.fillStyle = REGIME_COLOR[row?.regime] || "#eee";
-      ctx.fillRect(pad.l + colIndex * cellW, pad.t + (velocities.length - 1 - rowIndex) * cellH, cellW - 1, cellH - 1);
+      ctx.fillRect(x, y, cellW - 1, cellH - 1);
+      const outlined = outline && outline.dIndex === colIndex && outline.vIndex === rowIndex;
+      canvas._regimeCells.push({
+        x, y, w: cellW, h: cellH, diameterM: diameter, velocityMs: velocity, row, outlined,
+      });
     });
   });
-  ctx.fillStyle = "#6d6458";
-  ctx.fillText(formatDiameter(diameters[0]), pad.l, height - 8);
-  ctx.fillText(formatDiameter(diameters[diameters.length - 1]), width - pad.r - 36, height - 8);
-  ctx.fillText(`${Math.round(velocities[0] / 1000)} km/s`, 2, pad.t + plotH);
-  ctx.fillText(`${Math.round(velocities[velocities.length - 1] / 1000)}`, 2, pad.t + 10);
-  if (current?.diameterM && current?.velocityMs) {
-    const dIndex = diameters.reduce((best, value, index) =>
-      Math.abs(Math.log(value) - Math.log(current.diameterM)) < Math.abs(Math.log(diameters[best]) - Math.log(current.diameterM))
-        ? index
-        : best, 0);
-    const vIndex = velocities.reduce((best, value, index) =>
-      Math.abs(value - current.velocityMs) < Math.abs(velocities[best] - current.velocityMs) ? index : best, 0);
+  if (outline) {
     ctx.strokeStyle = "#1d1914";
     ctx.lineWidth = 2;
-    ctx.strokeRect(pad.l + dIndex * cellW + 1, pad.t + (velocities.length - 1 - vIndex) * cellH + 1, cellW - 3, cellH - 3);
+    ctx.strokeRect(
+      pad.l + outline.dIndex * cellW + 1,
+      pad.t + (velocities.length - 1 - outline.vIndex) * cellH + 1,
+      cellW - 3,
+      cellH - 3,
+    );
   }
+  ctx.fillStyle = "#6d6458";
+  ctx.fillText("Impactor diameter", pad.l, height - 4);
+  diameters.forEach((diameter, index) => {
+    if (diameters.length > 8 && index % 2 && index !== diameters.length - 1) return;
+    ctx.fillText(formatDiameter(diameter), pad.l + index * cellW, height - 18);
+  });
+  ctx.save();
+  ctx.translate(14, pad.t + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.fillText("Impact velocity (km/s)", 0, 0);
+  ctx.restore();
+  velocities.forEach((velocity, rowIndex) => {
+    const y = pad.t + (velocities.length - 1 - rowIndex) * cellH + cellH / 2 + 3;
+    ctx.fillText(String(Math.round(velocity / 1000)), pad.l - 22, y);
+  });
+  const legend = [
+    ["none", "Beige: no slip"],
+    ["slip", "Blue: faults slip"],
+    ["lid", "Gold: lid breaks"],
+    ["dynamo", "Red: dynamo"],
+  ];
+  legend.forEach(([key, label], index) => {
+    const y = pad.t + index * 16;
+    ctx.fillStyle = REGIME_COLOR[key];
+    ctx.fillRect(width - pad.r + 8, y, 12, 10);
+    ctx.fillStyle = "#1d1914";
+    ctx.fillText(label, width - pad.r + 24, y + 9);
+  });
+  ctx.fillStyle = "#6d6458";
+  ctx.fillText("Outline: current", width - pad.r + 8, pad.t + 74);
+  ctx.fillText("sliders. Click", width - pad.r + 8, pad.t + 86);
+  ctx.fillText("a cell to set", width - pad.r + 8, pad.t + 98);
+  ctx.fillText("them.", width - pad.r + 8, pad.t + 110);
+  void REGIME_LABEL;
 }

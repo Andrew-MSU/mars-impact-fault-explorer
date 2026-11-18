@@ -7,6 +7,7 @@ import {
   EARTH_MOMENT_AM2,
   EARTH_RADIUS_M,
   adiabaticHeatFluxWm2,
+  alongStrikeExtentM,
   antipodalGain,
   capLoadStress,
   classifyOutcome,
@@ -19,7 +20,7 @@ import {
   subductionIndex,
   transferredDeltaCfs,
 } from "../src/model/globalPhysics.js";
-import { assessGlobal, prepareFaults } from "../src/model/globalScenario.js";
+import { assessGlobal, evaluateCore, prepareFaults } from "../src/model/globalScenario.js";
 
 test("isostatic cap load is tensile at the center and radial compression in the annulus", () => {
   const center = capLoadStress(0, 0.8, 10e6, "isostatic");
@@ -156,7 +157,7 @@ test("adiabatic flux scales with conductivity and standoff falls as solar-wind p
   const low = magnetopauseRadiusM(1e22, 1e-9);
   const high = magnetopauseRadiusM(1e22, 8e-9);
   assert.ok(high < low);
-  assert.equal(magnetopauseRadiusM(0, 1e-9), 0);
+  assert.equal(magnetopauseRadiusM(0, 1e-9), null);
 });
 
 test("an Earth-like moment stands off near 10 Earth radii", () => {
@@ -373,6 +374,108 @@ test("a nearer fault sees a larger impact stress, and transfer raises its neighb
   );
   const pushedById = new Map(pushed.statuses.map((row) => [row.id, row]));
   assert.ok(pushedById.get("neighbor").cfs > byId.get("neighbor").cfs);
+});
+
+test("along-strike extent is the span of the zone, not the sum of parallel traces", () => {
+  const faults = [
+    { lon: 0, lat: 0, strikeDeg: 90, lengthM: 1000e3 },
+    { lon: 0, lat: 0.2, strikeDeg: 90, lengthM: 1000e3 },
+    { lon: 0, lat: -0.2, strikeDeg: 90, lengthM: 1000e3 },
+  ];
+  const zone = alongStrikeExtentM(faults, 3_396_190);
+  assert.ok(zone.traceLengthM > 2.9e6);
+  assert.ok(zone.extentM < 1.4e6, `extent ${zone.extentM}`);
+  assert.ok(zone.extentM > 0.9e6);
+  assert.ok(Math.abs(zone.centroidLat) < 0.05);
+});
+
+test("CMB power uses the base-of-crust area, and a zero moment has no standoff", () => {
+  const core = evaluateCore(params({
+    mantleFlux: 0.02,
+    crustalHeatWm3: 0,
+    radioMode: "bsm",
+    uraniumPpb: 0,
+    thoriumPpb: 0,
+    potassiumPpm: 0,
+    secularFraction: 0,
+    bmlTransfer: 1,
+    includeImpact: false,
+  }));
+  const crustR = params().planetRadiusM - params().crustM;
+  const expected = 0.02 * (crustR / params().coreRadiusM) ** 2;
+  assert.ok(Math.abs(core.qCmbWm2 - expected) / expected < 1e-6, `${core.qCmbWm2} vs ${expected}`);
+  const quiet = evaluateCore(params({
+    mantleFlux: 0,
+    crustalHeatWm3: 0,
+    uraniumPpb: 0,
+    thoriumPpb: 0,
+    potassiumPpm: 0,
+    includeImpact: false,
+  }));
+  assert.equal(quiet.momentAm2, 0);
+  assert.equal(quiet.retention.nominalAltitudeM, null);
+  assert.equal(quiet.fastProtective, false);
+});
+
+test("fastProtective stays false when the background is already protective", () => {
+  const core = evaluateCore(params({
+    mantleFlux: 5,
+    crustalHeatWm3: 0,
+    uraniumPpb: 0,
+    thoriumPpb: 0,
+    potassiumPpm: 0,
+    gunellPeakAm2: 0,
+    exobaseM: 0,
+    includeImpact: true,
+    massKg: 1e15,
+    velocityMs: 10e3,
+    angleDeg: 20,
+    coupledJ: 1e20,
+    spinCoupling: 0,
+    coreHeatFraction: 0,
+  }), { subductionInitiates: false });
+  assert.equal(core.backgroundProtective, true);
+  assert.equal(core.fastProtective, false);
+});
+
+test("ductile continuation applies only once failure reaches the BDT", () => {
+  const faults = prepareFaults([line("a", 0.2, 0), line("b", 0.4, 0)]);
+  const reached = assessGlobal(faults, params({
+    bdtM: 20e3,
+    crustM: 50e3,
+    capAtMoho: true,
+    teM: 40e3,
+    ductileFraction: 1,
+    criticality: 1,
+    cohesionPa: 0,
+    phiDeg: 30,
+    dipNormal: 60,
+    transferFraction: 0,
+    tharsisPa: 0,
+    diameterM: 50_000,
+    efficiency: 1e-2,
+    staticCutoffM: 5e6,
+  }), { detail: false });
+  assert.equal(reached.weakZone.reachedBdt, reached.weakZone.depthM >= 20e3 * 0.999);
+  if (reached.weakZone.reachedBdt) {
+    assert.ok(reached.weakZone.ductileM > 0);
+    assert.ok(reached.weakZone.effectiveDepthM <= 50e3);
+  }
+  const blocked = assessGlobal(faults, params({
+    bdtM: 100e3,
+    crustM: 20e3,
+    capAtMoho: true,
+    teM: 100e3,
+    ductileFraction: 1,
+    criticality: 1,
+    cohesionPa: 0,
+    phiDeg: 30,
+    transferFraction: 0,
+    tharsisPa: 0,
+  }), { detail: false });
+  assert.equal(blocked.weakZone.ductileM, 0);
+  assert.equal(blocked.weakZone.ductileBlockedByMoho, true);
+  assert.ok(blocked.weakZone.depthM <= 20e3 + 1);
 });
 
 test("the shipped global catalog is real SIM 3292 lines, not an empty placeholder", () => {

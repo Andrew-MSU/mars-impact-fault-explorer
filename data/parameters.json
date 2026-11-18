@@ -402,7 +402,7 @@
       "max": 45.0,
       "units": "km",
       "to_si": 1000.0,
-      "material": "Martian crust/mantel",
+      "material": "Martian crust/mantle",
       "method": "Fault penetration depth/ rheological modeling",
       "doi": "10.1016/j.icarus.2006.10.001",
       "note": "Early-Mars / Active value. Grott et al. (2007) & Schultz & Watters (2001, doi:10.1029/2000JE001369) show major faults root into a crustal BDT at ~25-35 km depth.",

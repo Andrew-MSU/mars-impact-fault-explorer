@@ -62,8 +62,8 @@ function disposeObject(object) {
 }
 
 export function createView(canvas, { onPick }) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  renderer.setPixelRatio(1);
   renderer.setClearColor(0x14110e, 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -89,6 +89,9 @@ export function createView(canvas, { onPick }) {
   let frame = null;
   let terrainKey = "";
   let regionKey = "";
+  let cutawayKey = "";
+  const cutaway = new THREE.Group();
+  overlays.add(cutaway);
   let projector = null;
   let terrainMesh = null;
   let pointerDown = null;
@@ -170,97 +173,22 @@ export function createView(canvas, { onPick }) {
   }
 
   function buildOverlays(next) {
-    disposeObject(overlays);
-    overlays.clear();
+    const keepCutaway = cutaway.parent === overlays;
+    for (const child of [...overlays.children]) {
+      if (child === cutaway) continue;
+      overlays.remove(child);
+      disposeObject(child);
+    }
+    if (!keepCutaway) overlays.add(cutaway);
     const ve = next.ve;
     const { widthM, heightM } = next;
 
-    if (next.showSubsurface) {
-      const cols = next.cols;
-      const rows = next.rows;
-      const positions = [];
-      const colors = [];
-      const indices = [];
-      const moho = [];
-      const bdt = [];
-      const y = -heightM / 2 - Math.max(widthM, heightM) * 0.012;
-      const ledge = heightM * 0.07;
-      for (let ix = 0; ix < cols; ix += 1) {
-        const elev = next.heights[(rows - 1) * cols + ix];
-        const x = -widthM / 2 + (ix / (cols - 1)) * widthM;
-        const top = elev * ve;
-        const base = (elev - Math.max(next.bdtM, next.crustM) * 1.08) * ve;
-        const mohoZ = (elev - next.crustM) * ve;
-        const bdtZ = (elev - next.bdtM) * ve;
-        const start = positions.length / 3;
-        positions.push(x, y, top, x, y, mohoZ, x, y, base);
-        const crust = [0.62, 0.4, 0.28];
-        const mantle = [0.32, 0.14, 0.18];
-        colors.push(...crust, ...crust, ...mantle);
-        moho.push(x, y, mohoZ);
-        bdt.push(x, y, bdtZ);
-        if (ix > 0) {
-          const prev = start - 3;
-          indices.push(prev, prev + 1, start, start, prev + 1, start + 1);
-          indices.push(prev + 1, prev + 2, start + 1, start + 1, prev + 2, start + 2);
-        }
-      }
-      const wall = new THREE.BufferGeometry();
-      wall.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-      wall.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-      wall.setIndex(indices);
-      wall.computeVertexNormals();
-      overlays.add(new THREE.Mesh(wall, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
-
-      const mohoLine = new THREE.BufferGeometry();
-      mohoLine.setAttribute("position", new THREE.Float32BufferAttribute(moho, 3));
-      overlays.add(new THREE.Line(mohoLine, new THREE.LineBasicMaterial({ color: 0xf0d7a4 })));
-      const bdtLine = new THREE.BufferGeometry();
-      bdtLine.setAttribute("position", new THREE.Float32BufferAttribute(bdt, 3));
-      overlays.add(new THREE.Line(bdtLine, new THREE.LineBasicMaterial({ color: 0x7dcec4 })));
-
-      const ledgeGeo = (source, yLift) => {
-        const lifted = [];
-        for (let i = 0; i < source.length; i += 3) {
-          lifted.push(source[i], source[i + 1] + yLift, source[i + 2]);
-        }
-        const geo = new THREE.BufferGeometry();
-        const count = source.length / 3;
-        const pos = new Float32Array(count * 2 * 3);
-        const idx = [];
-        for (let i = 0; i < count; i += 1) {
-          pos.set(source.slice(i * 3, i * 3 + 3), i * 3);
-          pos.set(lifted.slice(i * 3, i * 3 + 3), (count + i) * 3);
-          if (i > 0) {
-            const a = i - 1;
-            const b = i;
-            idx.push(a, b, count + a, b, count + b, count + a);
-          }
-        }
-        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-        geo.setIndex(idx);
-        return geo;
-      };
-      overlays.add(
-        new THREE.Mesh(
-          ledgeGeo(moho, ledge),
-          new THREE.MeshBasicMaterial({ color: 0xf0d7a4, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
-        ),
-      );
-      overlays.add(
-        new THREE.Mesh(
-          ledgeGeo(bdt, ledge * 0.65),
-          new THREE.MeshBasicMaterial({ color: 0x7dcec4, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }),
-        ),
-      );
-      const southMid = next.heights[(rows - 1) * cols + Math.floor(cols / 2)];
-      const mohoLabel = makeLabel("Moho", "#f0d7a4");
-      mohoLabel.position.set(widthM * 0.42, y, (southMid - next.crustM) * ve);
-      mohoLabel.scale.set(widthM * 0.09, widthM * 0.022, 1);
-      const bdtLabel = makeLabel("BDT", "#9ee0d6");
-      bdtLabel.position.set(widthM * 0.42, y, (southMid - next.bdtM) * ve);
-      bdtLabel.scale.set(widthM * 0.07, widthM * 0.018, 1);
-      overlays.add(mohoLabel, bdtLabel);
+    const nextCutKey = `${next.regionId}|${next.ve}|${next.bdtM}|${next.crustM}|${next.showSubsurface}|${next.cols}`;
+    if (nextCutKey !== cutawayKey) {
+      disposeObject(cutaway);
+      cutaway.clear();
+      cutawayKey = nextCutKey;
+      if (next.showSubsurface) buildCutaway(next, cutaway, ve, widthM, heightM);
     }
 
     const positions = [];
@@ -327,15 +255,15 @@ export function createView(canvas, { onPick }) {
       const { x, y } = project(next.impact.lon, next.impact.lat);
       const z = projector.sampleElev(next.impact.lon, next.impact.lat) * ve;
       const marker = new THREE.Mesh(
-        new THREE.SphereGeometry(Math.max(next.widthM, next.heightM) * 0.008, 16, 12),
+        new THREE.SphereGeometry(Math.max(next.widthM, next.heightM) * 0.008, 12, 8),
         new THREE.MeshBasicMaterial({ color: 0xf2d48a }),
       );
       marker.position.set(x, y, z + Math.max(next.widthM, next.heightM) * 0.01);
       overlays.add(marker);
       if (next.craterFinalM > 0) {
         const ring = [];
-        for (let i = 0; i <= 72; i += 1) {
-          const bearing = (i / 72) * 360;
+        for (let i = 0; i <= 48; i += 1) {
+          const bearing = (i / 48) * 360;
           const point = destinationPoint(next.impact.lon, next.impact.lat, bearing, next.craterFinalM / 2);
           const projected = project(point.lon, point.lat);
           const elev = projector.sampleElev(point.lon, point.lat);
@@ -346,6 +274,94 @@ export function createView(canvas, { onPick }) {
         overlays.add(new THREE.Line(ringGeo, new THREE.LineBasicMaterial({ color: 0xf2d48a })));
       }
     }
+  }
+
+  function buildCutaway(next, host, ve, widthM, heightM) {
+    const cols = next.cols;
+    const rows = next.rows;
+    const wallPositions = [];
+    const wallColors = [];
+    const wallIndices = [];
+    const moho = [];
+    const bdt = [];
+    const y = -heightM / 2 - Math.max(widthM, heightM) * 0.012;
+    const ledge = heightM * 0.07;
+    for (let ix = 0; ix < cols; ix += 1) {
+        const elev = next.heights[(rows - 1) * cols + ix];
+        const x = -widthM / 2 + (ix / (cols - 1)) * widthM;
+        const top = elev * ve;
+        const base = (elev - Math.max(next.bdtM, next.crustM) * 1.08) * ve;
+        const mohoZ = (elev - next.crustM) * ve;
+        const bdtZ = (elev - next.bdtM) * ve;
+        const start = wallPositions.length / 3;
+        wallPositions.push(x, y, top, x, y, mohoZ, x, y, base);
+        const crust = [0.62, 0.4, 0.28];
+        const mantle = [0.32, 0.14, 0.18];
+        wallColors.push(...crust, ...crust, ...mantle);
+        moho.push(x, y, mohoZ);
+        bdt.push(x, y, bdtZ);
+        if (ix > 0) {
+          const prev = start - 3;
+          wallIndices.push(prev, prev + 1, start, start, prev + 1, start + 1);
+          wallIndices.push(prev + 1, prev + 2, start + 1, start + 1, prev + 2, start + 2);
+        }
+    }
+    const wall = new THREE.BufferGeometry();
+    wall.setAttribute("position", new THREE.Float32BufferAttribute(wallPositions, 3));
+    wall.setAttribute("color", new THREE.Float32BufferAttribute(wallColors, 3));
+    wall.setIndex(wallIndices);
+      wall.computeVertexNormals();
+      host.add(new THREE.Mesh(wall, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+
+      const mohoLine = new THREE.BufferGeometry();
+      mohoLine.setAttribute("position", new THREE.Float32BufferAttribute(moho, 3));
+      host.add(new THREE.Line(mohoLine, new THREE.LineBasicMaterial({ color: 0xf0d7a4 })));
+      const bdtLine = new THREE.BufferGeometry();
+      bdtLine.setAttribute("position", new THREE.Float32BufferAttribute(bdt, 3));
+      host.add(new THREE.Line(bdtLine, new THREE.LineBasicMaterial({ color: 0x7dcec4 })));
+
+      const ledgeGeo = (source, yLift) => {
+        const lifted = [];
+        for (let i = 0; i < source.length; i += 3) {
+          lifted.push(source[i], source[i + 1] + yLift, source[i + 2]);
+        }
+        const geo = new THREE.BufferGeometry();
+        const count = source.length / 3;
+        const pos = new Float32Array(count * 2 * 3);
+        const idx = [];
+        for (let i = 0; i < count; i += 1) {
+          pos.set(source.slice(i * 3, i * 3 + 3), i * 3);
+          pos.set(lifted.slice(i * 3, i * 3 + 3), (count + i) * 3);
+          if (i > 0) {
+            const a = i - 1;
+            const b = i;
+            idx.push(a, b, count + a, b, count + b, count + a);
+          }
+        }
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        geo.setIndex(idx);
+        return geo;
+      };
+      host.add(
+        new THREE.Mesh(
+          ledgeGeo(moho, ledge),
+          new THREE.MeshBasicMaterial({ color: 0xf0d7a4, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
+        ),
+      );
+      host.add(
+        new THREE.Mesh(
+          ledgeGeo(bdt, ledge * 0.65),
+          new THREE.MeshBasicMaterial({ color: 0x7dcec4, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }),
+        ),
+      );
+      const southMid = next.heights[(rows - 1) * cols + Math.floor(cols / 2)];
+      const mohoLabel = makeLabel("Moho", "#f0d7a4");
+      mohoLabel.position.set(widthM * 0.42, y, (southMid - next.crustM) * ve);
+      mohoLabel.scale.set(widthM * 0.09, widthM * 0.022, 1);
+      const bdtLabel = makeLabel("BDT", "#9ee0d6");
+      bdtLabel.position.set(widthM * 0.42, y, (southMid - next.bdtM) * ve);
+      bdtLabel.scale.set(widthM * 0.07, widthM * 0.018, 1);
+      host.add(mohoLabel, bdtLabel);
   }
 
   function show(next) {
@@ -391,6 +407,7 @@ export function createView(canvas, { onPick }) {
   function animate() {
     if (!running) return;
     requestAnimationFrame(animate);
+    if (canvas.clientWidth < 2 || canvas.offsetParent === null) return;
     controls.update();
     renderer.render(scene, camera);
   }

@@ -13,6 +13,33 @@
 export const MARS_GRAVITY = 3.71;
 export const MARS_RADIUS_M = 3_396_190;
 export const GAS_CONSTANT = 8.314462618;
+/**
+ * Deepest depth at which a fault is tested.
+ * With the Moho cap on, that is the shallower of the BDT and the crust.
+ * With the cap off, faults are tested down to the BDT even where that is below the Moho.
+ */
+export function brittleDepthLimitM({ bdtM, crustM, capAtMoho = true }) {
+  const bdt = Math.max(bdtM, 1);
+  if (!capAtMoho) return bdt;
+  return Math.min(bdt, Math.max(crustM, 1));
+}
+
+/**
+ * Depths from the surface to `limitM`, including the limit itself.
+ * The last sample sits on the limit so a failure that reaches the BDT is not
+ * missed by a midpoint that stops short of it. `dz` is the bin thickness used for area.
+ */
+export function depthSampleZs(limitM, steps) {
+  const n = Math.max(2, Math.round(steps) || 2);
+  const limit = Math.max(limitM, 1);
+  const dz = limit / n;
+  const zs = [];
+  for (let step = 0; step < n; step += 1) {
+    zs.push(step === n - 1 ? limit : (step + 0.5) * dz);
+  }
+  return { zs, dz, limit, steps: n };
+}
+
 /** Rim diameter of the simple-to-complex transition used for Mars. */
 export const SIMPLE_COMPLEX_MARS_M = 7000;
 /** A fault this close to the failure envelope, as a fraction of strength, is "near failure". */
