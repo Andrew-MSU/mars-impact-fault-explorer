@@ -26,8 +26,8 @@ function vectorToLonLat(vector) {
 }
 
 export function createGlobe(canvas, { onPick }) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  renderer.setPixelRatio(1);
   renderer.setClearColor(0x14110e, 1);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(35, 1, 1e4, 5e7);
@@ -46,7 +46,7 @@ export function createGlobe(canvas, { onPick }) {
   scene.add(sun);
 
   const globe = new THREE.Mesh(
-    new THREE.SphereGeometry(MARS_RADIUS_M, 72, 48),
+    new THREE.SphereGeometry(MARS_RADIUS_M, 48, 32),
     new THREE.MeshPhongMaterial({ color: 0xb85a38, emissive: 0x2a120c, shininess: 6 }),
   );
   scene.add(globe);
@@ -100,10 +100,11 @@ export function createGlobe(canvas, { onPick }) {
   }
 
   function frame() {
+    requestAnimationFrame(frame);
+    if (canvas.clientWidth < 2 || canvas.offsetParent === null) return;
     resize();
     controls.update();
     renderer.render(scene, camera);
-    requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 

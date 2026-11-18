@@ -10,9 +10,11 @@ import {
   MARS_RADIUS_M,
   azimuthDeg,
   backgroundOnFault,
+  brittleDepthLimitM,
   boussinesq,
   coupledEnergyJ,
   deltaCfsFromCompressionTensor,
+  depthSampleZs,
   destinationPoint,
   dynamicStressPa,
   effectiveViscosityPaS,
@@ -107,15 +109,17 @@ export function prepareGrid(spec) {
   const spacingM = spec.sampling?.spacingM ?? 20_000;
   const depthSteps = spec.sampling?.depthSteps ?? 12;
   const bdtM = spec.thermal.bdtM;
-  const dz = bdtM / depthSteps;
+  const capAtMoho = spec.sampling?.capAtMoho !== false;
+  const limitM = brittleDepthLimitM({ bdtM, crustM: spec.thermal.crustM, capAtMoho });
+  const sampled = depthSampleZs(limitM, depthSteps);
+  const dz = sampled.dz;
   const mu = shearModulusPa(spec.material.youngsPa, spec.material.poisson);
   const segments = [];
   spec.faults.forEach((fault, index) => {
     const piece = Math.max(spacingM, faultLength(fault) / 28);
     for (const segment of faultSegments(fault, index, piece)) {
       const depths = [];
-      for (let step = 0; step < depthSteps; step += 1) {
-        const z = (step + 0.5) * dz;
+      for (const z of sampled.zs) {
         const background = backgroundOnFault({
           depthM: z,
           density: spec.material.density,
@@ -167,6 +171,8 @@ export function prepareGrid(spec) {
     vs: shearVelocityMs(mu, spec.material.density),
     bdtM,
     crustM: spec.thermal.crustM,
+    depthLimitM: limitM,
+    capAtMoho,
     regime: spec.material.regime,
   };
 }
@@ -497,6 +503,33 @@ export function sweepDiameters(grid, impact, material, diameters) {
 export function onsetDiameter(rows, key = "fractionRegime") {
   const hit = rows.find((row) => row[key] > 0);
   return hit ? hit.diameterM : null;
+}
+
+/**
+ * Geometric bisection of the impactor diameter where `key` first exceeds zero.
+ * The diameter sweep is only a coarse bracket. Returns null when the top of
+ * the range still does not fail.
+ */
+export function refineOnsetDiameter(grid, impact, material, key, bounds = {}) {
+  const fractionAt = (diameterM) => {
+    const result = runImpact(grid, { ...impact, diameterM }, material);
+    return { fraction: result[key] || 0, magnitude: result.source.magnitude, diameterM };
+  };
+  let lo = bounds.minM ?? 40;
+  let hi = bounds.maxM ?? 60_000;
+  const atLo = fractionAt(lo);
+  const atHi = fractionAt(hi);
+  if (!(atHi.fraction > 0)) return { diameterM: null, magnitude: null, fraction: 0, atFloor: false };
+  if (atLo.fraction > 0) return { diameterM: lo, magnitude: atLo.magnitude, fraction: atLo.fraction, atFloor: true };
+  for (let i = 0; i < 16; i += 1) {
+    const mid = Math.sqrt(lo * hi);
+    const at = fractionAt(mid);
+    if (at.fraction > 0) hi = mid;
+    else lo = mid;
+    if (hi / lo < 1.015) break;
+  }
+  const atHiEnd = fractionAt(hi);
+  return { diameterM: hi, magnitude: atHiEnd.magnitude, fraction: atHiEnd.fraction, atFloor: false };
 }
 
 export { MARS_GRAVITY, MARS_RADIUS_M, YEAR_S };

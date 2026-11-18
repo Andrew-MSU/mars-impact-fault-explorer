@@ -21,13 +21,53 @@ function mw(value) {
   return value.toFixed(2);
 }
 
-function km(meters) {
-  if (!Number.isFinite(meters)) return "—";
+function km(meters, momentAm2 = 1) {
+  if (!(momentAm2 > 0) || meters == null || !Number.isFinite(meters)) return "n/a (no field)";
   return `${(meters / 1000).toFixed(0)} km`;
 }
 
+function viscosityText(eta) {
+  if (!Number.isFinite(eta)) return "not defined";
+  if (eta > 1e24) {
+    return `${eta.toExponential(2)} Pa·s — effectively rigid. Dry diabase at mid-BDT temperature creeps so slowly that the Maxwell time is longer than the age of Mars, so repeated impacts do not relax.`;
+  }
+  return `${eta.toExponential(2)} Pa·s`;
+}
+
+export function dynamoStatus(core) {
+  const q = core.qCmbWm2 * 1e3;
+  const ad = core.qAdWm2 * 1e3;
+  const gap = q - ad;
+  const spin = Number.isFinite(core.spinRatio) ? core.spinRatio.toExponential(2) : "—";
+  if (core.pathway === "background" && core.backgroundProtective) {
+    return `Background heat flow already passes the retention tests (q_cmb ${q.toFixed(2)} vs q_adiabatic ${ad.toFixed(2)} mW/m²). This impact is not what turns the dynamo on.`;
+  }
+  if (!(core.qCmbWm2 > core.qAdWm2)) {
+    return `No thermal dynamo at these settings: q_cmb is ${q.toFixed(2)} mW/m² and q_adiabatic is ${ad.toFixed(2)} mW/m² (short by ${Math.abs(gap).toFixed(2)} mW/m²). A thermal moment needs q_cmb above the adiabat, which means a higher mantle heat flux, lower core conductivity, or less radiogenic heating. Stirring is ${core.stirring ? "on" : "off"} (ΔΩ/Ω = ${spin}). fast pathway protective: ${core.fastProtective ? "yes" : "no"}.`;
+  }
+  if (!core.protective) {
+    return `q_cmb ${q.toFixed(2)} mW/m² is above q_adiabatic ${ad.toFixed(2)} mW/m², so a thermal moment is estimated, but it does not clear the Gunell peak and both standoffs. Raising β or the super-adiabatic flux would grow the moment; this page does not adjust those to force a dynamo. Stirring ΔΩ/Ω = ${spin}.`;
+  }
+  return pathwayText(core);
+}
+
+const TIPS = {
+  "q_cmb": "Heat flow at the base of the crust, minus mantle heating, spread over the core surface.",
+  "q_ad": "Conductive flux down the core adiabat. A thermal moment needs q_cmb above this.",
+  "q_adiabatic": "Conductive flux down the core adiabat. A thermal moment needs q_cmb above this.",
+  "Mw": "Moment magnitude from the seismic energy. Not a measured earthquake.",
+  "Moment magnitude": "Moment magnitude from the seismic energy. Not a measured earthquake.",
+  "ΔΩ/Ω": "Fractional spin change from the impact. Stirring turns on only above the threshold.",
+  "Past Gunell peak": "Gunell et al. (2018) cusp-escape peak. Protective cases must lie past it.",
+  "Nominal standoff": "Magnetopause altitude at nominal solar wind. n/a when there is no moment.",
+  "Storm standoff": "Magnetopause altitude at storm solar wind. n/a when there is no moment.",
+  "vs Earth": "This moment divided by Earth's. n/a when there is no moment.",
+};
+
 function cell(label, value) {
-  return `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+  const tip = TIPS[label];
+  const name = tip ? `<abbr class="term" title="${esc(tip)}">${label}</abbr>` : label;
+  return `<div><dt>${name}</dt><dd>${value}</dd></div>`;
 }
 
 const REGIME_TEXT = {
@@ -62,9 +102,9 @@ function coreLines(core) {
     ["q_ad", `${(core.qAdWm2 * 1e3).toFixed(2)} mW/m²`],
     ["Thermal", core.thermalOn ? "above adiabat" : "below adiabat"],
     ["Moment", sci(core.momentAm2, "A m²")],
-    ["vs Earth", core.momentAm2 > 0 ? `${(core.momentAm2 / 7.77e22).toFixed(2)}×` : "—"],
-    ["Nominal standoff", km(core.retention.nominalAltitudeM)],
-    ["Storm standoff", km(core.retention.stormAltitudeM)],
+    ["vs Earth", core.momentAm2 > 0 ? `${(core.momentAm2 / 7.77e22).toFixed(2)}×` : "n/a (no field)"],
+    ["Nominal standoff", km(core.retention.nominalAltitudeM, core.momentAm2)],
+    ["Storm standoff", km(core.retention.stormAltitudeM, core.momentAm2)],
     ["Past Gunell peak", core.retention.pastPeak ? "yes" : "no"],
     ["Protective", core.protective ? "yes" : "no"],
   ];
@@ -91,7 +131,7 @@ export function renderGlobalResults(host, payload) {
           ${cell("Moment", sci(offline.values.magnetic_moment_Am2, "A m²"))}
         </dl>` : `<p class="meta">${esc(offline.reason || "No interpolated value.")}</p>`}
       </section>`
-    : `<p class="meta">Offline runs: none loaded. The numbers above are the browser estimate. A real VPLanet sweep can be dropped in data/offline_runs and selected here. The shipped EXAMPLE file is not science.</p>`;
+    : `<p class="meta">Offline runs: none loaded. The numbers above are the browser estimate. A real VPLanet sweep can be selected below. The shipped EXAMPLE file is not science.</p>`;
   const best = smallest?.best;
   const smallestText = !smallest
     ? "The search over size, speed, angle, and a few published sites runs with the regime map."
@@ -100,10 +140,32 @@ export function renderGlobalResults(host, payload) {
     : best
       ? `Smallest protective case on the coarse grid: ${km(best.diameterM)} impactor at ${(best.velocityMs / 1000).toFixed(0)} km/s, angle ${best.angleDeg}°, ${esc(best.name)} (${best.lat.toFixed(1)}°, ${best.lon.toFixed(1)}°). Onset ${years(best.onsetYears)}. Duration ${years(best.durationYears)}. Moment ${sci(best.momentAm2, "A m²")}. Pathway ${esc(best.pathway)}.`
       : "No cell on the coarse grid is protective. The grid is diameter, speed, angle, and a handful of published sites. It is not a continuous optimum.";
+  const zoneLabel = zone.traceLengthM > zone.lengthM * 1.05
+    ? `${km(zone.lengthM)} along strike (sum of traces ${km(zone.traceLengthM)})`
+    : `${km(zone.lengthM)} along strike`;
+  const impactLine = payload.impactCompare
+    ? `${payload.impactCompare.changed} faults change failure state because of this impact. Largest impact-only ΔCFS is ${(payload.impactCompare.maxImpactMpa).toFixed(2)} MPa against a background CFS of ${(payload.impactCompare.backgroundMpa).toFixed(2)} MPa at that fault. Without the impact the regime is ${REGIME_TEXT[payload.impactCompare.baselineRegime] || payload.impactCompare.baselineRegime}.`
+    : "Impact-only comparison computes with the result.";
   host.innerHTML = `
+    <div class="result-card">
     <p class="tag">Basin &amp; Global · first-order browser estimate</p>
     <h2>${REGIME_TEXT[result.regime] || result.regime}</h2>
     <p class="verdict">${pathwayText(core)}</p>
+    <p class="status-line">${dynamoStatus(core)}</p>
+    ${result.source.magnitude >= 11 || result.source.finalM >= 1e6 ? `<p class="banner">Beyond model validity. At 80 km the impactor is already about Mw 11–12 with a crater of order 1000 km. This case is Mw ${mw(result.source.magnitude)} and a ${km(result.source.finalM)} crater. The calculation still runs; it is not a prediction.</p>` : ""}
+    <dl class="metrics">
+      ${cell("Mw", mw(result.source.magnitude))}
+      ${cell("Final crater", km(result.source.finalM))}
+      ${cell("q_cmb", `${(core.qCmbWm2 * 1e3).toFixed(2)} mW/m²`)}
+      ${cell("q_adiabatic", `${(core.qAdWm2 * 1e3).toFixed(2)} mW/m²`)}
+      ${cell("Subduction index", Number.isFinite(result.subduction.index) ? result.subduction.index.toFixed(2) : "∞")}
+      ${cell("Protective", core.protective ? "yes" : "no")}
+      ${cell("Along-strike extent", zoneLabel)}
+      ${cell("Faults moved by impact", payload.impactCompare ? String(payload.impactCompare.changed) : "—")}
+    </dl>
+    </div>
+    <details class="result-details">
+    <summary>Full numbers, pathways, and fault table</summary>
     ${core.qCmbWm2 < 0 ? `<p class="meta">q_cmb is negative. Mantle radiogenic power exceeds the heat flow at the base of the crust, so this steady budget does not cool the core. Raise q_m, lower U/Th/K, or set a negative mantle secular fraction.</p>` : ""}
     <p class="banner">Not a VPLanet run and not a spherical lithosphere model. The authoritative thermal history is the offline model. Every free number is a slider.</p>
     ${densityNote}
@@ -113,8 +175,9 @@ export function renderGlobalResults(host, payload) {
       ${cell("Catalog faults", String(faultCount))}
       ${cell("Reactivated", `${result.reactivatedCount} (${(result.fractionFailed * 100).toFixed(1)}% of area)`)}
       ${cell("Excavated", String(result.excavatedCount))}
-      ${cell("Weak-zone length", km(zone.lengthM))}
+      ${cell("Along-strike extent", zoneLabel)}
       ${cell("Weak-zone depth", `${km(zone.depthM)} vs Te ${km(zone.elasticM)}`)}
+      ${cell("Ductile continuation", zone.ductileBlockedByMoho ? "idle: Moho is above the BDT, so faults never reach it" : `${km(zone.ductileM || 0)} added`)}
       ${cell("Cuts elastic lid", zone.cutsLithosphere ? "yes" : "no")}
       ${cell("Damage", zone.damage.toFixed(2))}
       ${cell("Subduction index", Number.isFinite(result.subduction.index) ? result.subduction.index.toFixed(2) : "∞")}
@@ -127,17 +190,19 @@ export function renderGlobalResults(host, payload) {
       ${cell("Stirring", core.stirring ? `on (ΔΩ/Ω = ${core.spinRatio.toExponential(2)})` : `off (ΔΩ/Ω = ${core.spinRatio.toExponential(2)})`)}
       ${cell("Moment", sci(core.momentAm2, "A m²"))}
       ${cell("Earth's moment", "7.77×10²² A m² (comparison)")}
-      ${cell("Nominal altitude", km(core.retention.nominalAltitudeM))}
-      ${cell("Storm altitude", km(core.retention.stormAltitudeM))}
+      ${cell("Nominal standoff", km(core.retention.nominalAltitudeM, core.momentAm2))}
+      ${cell("Storm standoff", km(core.retention.stormAltitudeM, core.momentAm2))}
+      ${cell("vs Earth", core.momentAm2 > 0 ? `${(core.momentAm2 / 7.77e22).toFixed(2)}×` : "n/a (no field)")}
       ${cell("Past Gunell peak", core.retention.pastPeak ? "yes" : "no")}
       ${cell("Protective", core.protective ? "yes" : "no")}
       ${cell("Onset", years(core.onsetYears))}
       ${cell("Duration", years(core.durationYears))}
-      ${cell("Viscosity at mid-BDT", sci(result.viscosity.etaPaS, "Pa·s"))}
+      ${cell("Viscosity at mid-BDT", viscosityText(result.viscosity.etaPaS))}
       ${cell("Impact", `${result.antipode ? "" : ""}${payload.impact.lat.toFixed(1)}°, ${payload.impact.lon.toFixed(1)}°`)}
       ${cell("Antipode", `${payload.antipode.lat.toFixed(1)}°, ${payload.antipode.lon.toFixed(1)}°`)}
     </dl>
-    <p class="meta">Earth's moment at Mars, with these pressures, would stand off ${km(core.earth.nominalAltitudeM)} nominally. Gunell's cusp peak is about 30× that moment, so an Earth-strength field does not pass the peak test. Their model also has escape falling back toward the unmagnetized rate past the peak, not to zero.</p>
+    <p class="meta">${impactLine}</p>
+    <p class="meta">Earth's moment at Mars, with these pressures, would stand off ${km(core.earth.nominalAltitudeM, core.earthMomentAm2 || 1)} nominally. Gunell's cusp peak is about 30× that moment, so an Earth-strength field does not pass the peak test. Their model also has escape falling back toward the unmagnetized rate past the peak, not to zero. Stirring moment from this impact: ${sci(core.impactStirMomentAm2 || 0, "A m²")}. Fast pathway protective only if that impact pathway itself supplies protection the background lacks: ${core.fastProtective ? "yes" : "no"}.</p>
     <h3>Smallest protective impact</h3>
     <p class="verdict">${smallestText}</p>
     <h3>Dry and wet, same impact</h3>
@@ -170,17 +235,19 @@ export function renderGlobalResults(host, payload) {
     </div>
     ${offlineBlock}
     <table>
-      <thead><tr><th>Fault</th><th>Type</th><th>km</th><th>CFS MPa</th><th>Status</th></tr></thead>
+      <thead><tr><th>Fault</th><th>Type</th><th>km</th><th>CFS MPa</th><th>Impact ΔCFS</th><th>Status</th></tr></thead>
       <tbody>
         ${(result.faults || []).map((fault) => `<tr>
           <td>${esc(fault.name)}</td>
           <td>${fault.kinematics}</td>
           <td>${(fault.distanceM / 1000).toFixed(0)}</td>
           <td>${(fault.cfs / 1e6).toFixed(1)}</td>
+          <td>${Number.isFinite(fault.impactDeltaCfs) ? (fault.impactDeltaCfs / 1e6).toFixed(2) : "—"}</td>
           <td>${fault.inWeakZone ? "weak zone" : fault.status}</td>
         </tr>`).join("")}
       </tbody>
     </table>
-    <p class="meta">CFS includes the background deficit, so a negative value is still stable. The table is the eight faults closest to failure. Yellow faults on the globe are the weak zone.</p>
+    <p class="meta">CFS includes the background deficit, so a negative value is still stable. Impact ΔCFS is the impact's own static plus dynamic change at the depth that sets the total. The table is the eight faults closest to failure. Gold faults on the globe are the weak zone. Along-strike extent is the great-circle span of the zone, not the sum of its traces, and it is capped at one circumference.</p>
+    </details>
   `;
 }

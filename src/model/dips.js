@@ -11,6 +11,32 @@ export const DIP_SOURCES = measured.sources;
 export const DIP_CAVEAT = measured.caveat;
 export const DIP_FIT_SUMMARY = measured.fit.summary;
 
+const REGION_NAMES = {
+  valles_marineris: "Valles Marineris",
+  cerberus_fossae: "Cerberus Fossae",
+  isidis_planitia: "Isidis Planitia",
+};
+
+/**
+ * Caveat for the dip control that is actually selected.
+ * The catalog caveat is about HiRISE surface slopes and names Isidis.
+ * Literature defaults are sheet dips, and a Valles Marineris or Cerberus
+ * selection must not talk about the Isidis wrinkle ridge.
+ */
+export function dipCaveat({ regionId, source } = {}) {
+  const region = REGION_NAMES[regionId] || "this region";
+  if (source === "literature") {
+    return "Literature default uses the parameter-sheet dips: 60° for normal faults and 30° for thrusts. Those are Andersonian angles for friction near 30°, not HiRISE wall slopes. The Isidis wrinkle-ridge measurement is not used.";
+  }
+  if (regionId === "isidis_planitia") {
+    return "Isidis has no three-point fault measurement. This source uses the Feature 11 wrinkle-ridge flank, about 16°, and it is low confidence: five flank slopes on one ridge, and a wrinkle-ridge flank understates the fault dip. Degraded slopes and talus can be shallower than the fault that made them.";
+  }
+  if (source === "hirise") {
+    return `${region}: these dips are n-weighted means of HiRISE wall planes. They are slopes of the topographic surface, a proxy for near-surface fault dip, not a plane at depth. Talus and a degraded wall can be shallower than the fault. The Isidis wrinkle-ridge measurement is not used here.`;
+  }
+  return `${region}: these dips are the mean of Wheeler Feer's HiRISE three-point wall slopes. They proxy the fault dip near the surface. Talus and a degraded wall can be shallower than the fault. The Isidis wrinkle-ridge measurement is not used in this region.`;
+}
+
 const STRIKE_TOLERANCE = measured.fit.strike_tolerance_deg;
 const DIP_DIRECTION_TOLERANCE = measured.fit.dip_direction_tolerance_deg;
 

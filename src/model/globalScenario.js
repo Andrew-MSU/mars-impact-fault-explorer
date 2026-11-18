@@ -11,9 +11,11 @@ import {
   MARS_RADIUS_M,
   azimuthDeg,
   backgroundOnFault,
+  brittleDepthLimitM,
   boussinesq,
   coupledEnergyJ,
   deltaCfsFromCompressionTensor,
+  depthSampleZs,
   dynamicStressPa,
   effectiveViscosityPaS,
   finalCraterDiameterM,
@@ -34,6 +36,7 @@ import {
 import {
   addTensors,
   adiabaticHeatFluxWm2,
+  alongStrikeExtentM,
   angularSeparationDeg,
   antipodalGain,
   antipode,
@@ -264,8 +267,12 @@ export function evaluateCore(p, pathway = {}) {
   const radiusM = Math.max(p.coreRadiusM, 1000);
   const innerM = Math.min(Math.max(p.innerRadiusM, 0), radiusM * 0.95);
   const bmlM = Math.max(p.bmlM, 0);
-  const mantleBaseR = Math.min(p.planetRadiusM - p.crustM, radiusM + bmlM);
-  const baseArea = 4 * Math.PI * Math.max(mantleBaseR, 1) ** 2;
+  // q_m is the heat flux at the base of the crust (planet radius minus crustal
+  // thickness), not at the core or the base of the molten silicate layer.
+  // That power is what remains for the core after mantle radiogenic heating.
+  // q_cmb is the same power spread over the metallic-core surface.
+  const crustBaseR = Math.max(p.planetRadiusM - Math.max(p.crustM, 0), 1);
+  const baseArea = 4 * Math.PI * crustBaseR ** 2;
   const coreArea = 4 * Math.PI * radiusM ** 2;
   const basePower = p.mantleFlux * baseArea;
   const crustVolume = (4 / 3) * Math.PI * (p.planetRadiusM ** 3 - Math.max(p.planetRadiusM - p.crustM, 0) ** 3);
@@ -379,8 +386,18 @@ export function evaluateCore(p, pathway = {}) {
   const fastMoment = Math.max(momentStir, momentFastThermal);
   const fastGate = gate(fastMoment);
   const slowOn = Boolean(pathway.subductionInitiates) && slowGate.protective;
-  const fastOn = p.includeImpact && (stirGate.protective || fastThermalGate.protective);
   const backgroundOn = backgroundGate.protective;
+  // The fast thermal flux is the background flux minus core-top heating, so it
+  // cannot create protection the background does not already have. Count the
+  // fast pathway only when the impact itself supplies protection (stirring)
+  // that the background lacks, or when a fast thermal moment is protective
+  // without the background already being protective.
+  const stirCausesProtection = Boolean(p.includeImpact && stirGate.protective && !backgroundOn);
+  const fastThermalCausesProtection = Boolean(p.includeImpact && fastThermalGate.protective && !backgroundOn);
+  const fastOn = stirCausesProtection || fastThermalCausesProtection;
+  const suppressionRemovesProtection = Boolean(
+    p.includeImpact && backgroundOn && suppressNow > 0 && !fastThermalGate.protective,
+  );
   let onsetYears = null;
   let durationYears = null;
   let which = "none";
@@ -429,6 +446,11 @@ export function evaluateCore(p, pathway = {}) {
     backgroundProtective: backgroundOn,
     slowProtective: slowOn,
     fastProtective: fastOn,
+    stirCausesProtection,
+    fastThermalCausesProtection,
+    suppressionRemovesProtection,
+    impactStirMomentAm2: momentStir,
+    impactFastThermalMomentAm2: momentFastThermal,
     protective: backgroundOn || slowOn || fastOn,
     onsetYears,
     durationYears,
@@ -493,14 +515,29 @@ export function assessGlobal(faults, p, options = {}) {
   working.massKg = source.massKg;
   working.coupledJ = source.coupledJ;
   const focus = antipode(working.lon, working.lat);
-  const nDepth = Math.max(2, working.depthSteps || 4);
-  const dz = working.bdtM / nDepth;
+  const nDepth = Math.max(2, working.depthSteps || 8);
+  const capAtMoho = working.capAtMoho !== false;
   const statuses = detail ? new Array(faults.length) : null;
+  const crustOf = (fault) => {
+    const regions = working.crustRegions || [];
+    for (const region of regions) {
+      if (fault.lon >= region.west && fault.lon <= region.east && fault.lat >= region.south && fault.lat <= region.north) {
+        return region.crustM;
+      }
+    }
+    return working.crustM;
+  };
   const shells = shellsFor(faults, working);
   const state = faults.map((fault, faultIndex) => {
     const dip = dipOf(fault, working);
     const shell = shells[faultIndex];
+    const crustM = crustOf(fault);
+    const limitM = brittleDepthLimitM({ bdtM: working.bdtM, crustM, capAtMoho });
+    const sampled = depthSampleZs(limitM, nDepth);
+    const dz = sampled.dz;
     let cfs = -Infinity;
+    let backgroundAtPeak = -Infinity;
+    let impactAtPeak = 0;
     let failedDepth = 0;
     let excavated = false;
     let strengthAtFail = 1;
@@ -523,8 +560,7 @@ export function assessGlobal(faults, p, options = {}) {
         })
       : 0;
     const dDynamic = dynamicStressPa(pgv, working.density, vs) * gain;
-    for (let step = 0; step < nDepth; step += 1) {
-      const z = (step + 0.5) * dz;
+    for (const z of sampled.zs) {
       const background = backgroundOnFault({
         depthM: z,
         density: working.density,
@@ -567,9 +603,13 @@ export function assessGlobal(faults, p, options = {}) {
           mu: background.mu,
         }).deltaCfs;
       }
-      const total = background.cfs + shellCfs + dStatic + (dug ? 0 : dDynamic);
+      const impactDelta = dStatic + (dug ? 0 : dDynamic);
+      const backgroundTotal = background.cfs + shellCfs;
+      const total = backgroundTotal + impactDelta;
       if (total > cfs) {
         cfs = total;
+        backgroundAtPeak = backgroundTotal;
+        impactAtPeak = impactDelta;
         strengthAtFail = background.strength;
       }
       if (!dug && total >= 0) failedDepth = z;
@@ -578,6 +618,8 @@ export function assessGlobal(faults, p, options = {}) {
     return {
       fault,
       cfs,
+      backgroundCfs: backgroundAtPeak,
+      impactDeltaCfs: impactAtPeak,
       failed,
       failedDepth,
       excavated,
@@ -585,6 +627,8 @@ export function assessGlobal(faults, p, options = {}) {
       distance,
       shell,
       dip,
+      crustM,
+      depthLimitM: limitM,
     };
   });
 
@@ -623,7 +667,8 @@ export function assessGlobal(faults, p, options = {}) {
         to.cfs += extra;
         if (!to.failed && to.cfs >= 0) {
           to.failed = true;
-          to.failedDepth = Math.max(to.failedDepth, dz * 0.5);
+          const shallow = (to.depthLimitM || working.bdtM) / Math.max(2, nDepth) * 0.5;
+          to.failedDepth = Math.max(to.failedDepth, shallow);
         }
       }
     }
@@ -686,26 +731,32 @@ export function assessGlobal(faults, p, options = {}) {
     }
     zoneRows = best;
   }
-  const zoneLengthM = zoneRows.reduce((sum, row) => sum + row.fault.lengthM, 0);
+  const traceLengthM = zoneRows.reduce((sum, row) => sum + row.fault.lengthM, 0);
   const failedLengthM = zoneRows.filter((row) => row.failed).reduce((sum, row) => sum + row.fault.lengthM, 0);
+  const geometry = alongStrikeExtentM(zoneRows.map((row) => row.fault), working.planetRadiusM || MARS_RADIUS_M);
+  const zoneLengthM = geometry.extentM;
   const zoneDepthM = zoneRows.reduce((max, row) => Math.max(max, row.failedDepth || 0), 0);
   const damage = netDamage({
     failedLengthM,
-    zoneLengthM,
+    zoneLengthM: traceLengthM,
     damageRate: working.damageRate,
     ageYears: working.damageAgeYears,
     healYears: working.healYears,
   });
-  const ductile = zoneDepthM >= working.bdtM * 0.98 ? working.ductileFraction * Math.max(0, working.teM - working.bdtM) : 0;
-  const effectiveDepthM = zoneDepthM + ductile;
+  // Ductile continuation is the stretch from the BDT down toward Te. It applies
+  // only when brittle failure actually reaches the BDT. A Moho cap above the BDT
+  // stops the fault in the crust, so the slider then adds nothing.
+  const reachedBdt = zoneDepthM >= working.bdtM * (1 - 1e-4);
+  const ductile = reachedBdt ? working.ductileFraction * Math.max(0, working.teM - working.bdtM) : 0;
+  let effectiveDepthM = zoneDepthM + ductile;
+  const deepest = zoneRows.reduce((best, row) => ((row.failedDepth || 0) > (best?.failedDepth || 0) ? row : best), null);
+  if (capAtMoho && deepest) effectiveDepthM = Math.min(effectiveDepthM, deepest.crustM);
+  const crustForCap = deepest ? deepest.crustM : working.crustM;
+  const ductileBlockedByMoho = capAtMoho && crustForCap < working.bdtM * (1 - 1e-4);
   const cuts = zoneLengthM > 0 && effectiveDepthM >= working.teM;
   const longEnough = zoneLengthM >= working.lidLengthFactor * Math.max(working.teM, 1);
-  let centroidLon = working.lon;
-  let centroidLat = working.lat;
-  if (zoneRows.length) {
-    centroidLon = zoneRows.reduce((sum, row) => sum + row.fault.lon, 0) / zoneRows.length;
-    centroidLat = zoneRows.reduce((sum, row) => sum + row.fault.lat, 0) / zoneRows.length;
-  }
+  const centroidLon = zoneRows.length ? geometry.centroidLon : working.lon;
+  const centroidLat = zoneRows.length ? geometry.centroidLat : working.lat;
   const zoneShell = shellField(centroidLon, centroidLat, working);
   const hLith = Math.max(working.hLithM, 1);
   const rhoMl = working.mantleDensity - working.depletion;
@@ -754,12 +805,22 @@ export function assessGlobal(faults, p, options = {}) {
   let area = 0;
   let failedArea = 0;
   let excavatedArea = 0;
+  let maxImpactDelta = 0;
+  let backgroundAtMaxImpact = 0;
   for (const row of state) {
     const dip = Math.max(row.dip, 5);
-    const piece = (row.fault.lengthM * working.bdtM) / Math.sin((dip * Math.PI) / 180);
+    const column = row.depthLimitM || working.bdtM;
+    const piece = (row.fault.lengthM * column) / Math.sin((dip * Math.PI) / 180);
     area += piece;
     if (row.excavated) excavatedArea += piece;
-    else if (row.failed) failedArea += (row.fault.lengthM * Math.max(row.failedDepth, dz)) / Math.sin((dip * Math.PI) / 180);
+    else if (row.failed) {
+      const rowDz = row.depthLimitM / Math.max(2, nDepth);
+      failedArea += (row.fault.lengthM * Math.max(row.failedDepth, rowDz)) / Math.sin((dip * Math.PI) / 180);
+    }
+    if (Math.abs(row.impactDeltaCfs) > Math.abs(maxImpactDelta)) {
+      maxImpactDelta = row.impactDeltaCfs;
+      backgroundAtMaxImpact = row.backgroundCfs;
+    }
   }
   const lidBreaks = (cuts && longEnough) || subduction.initiates;
   const anySlip = failedArea > 0 || excavatedArea > 0;
@@ -779,6 +840,8 @@ export function assessGlobal(faults, p, options = {}) {
         lat: row.fault.lat,
         distanceM: row.distance,
         cfs: row.cfs,
+        backgroundCfs: row.backgroundCfs,
+        impactDeltaCfs: row.impactDeltaCfs,
         failedDepthM: row.failedDepth,
         status,
         inWeakZone: weakIds.has(row.fault.id),
@@ -792,7 +855,10 @@ export function assessGlobal(faults, p, options = {}) {
     source,
     antipode: focus,
     faultCount: faults.length,
+    failedIds: state.filter((row) => (row.failed && !row.excavated) || row.excavated).map((row) => row.fault.id),
     reactivatedCount: state.filter((row) => row.failed && !row.excavated).length,
+    maxImpactDeltaCfs: maxImpactDelta,
+    backgroundCfsAtMaxImpact: backgroundAtMaxImpact,
     excavatedCount: state.filter((row) => row.excavated).length,
     fractionFailed: area > 0 ? failedArea / area : 0,
     fractionExcavated: area > 0 ? excavatedArea / area : 0,
@@ -801,11 +867,17 @@ export function assessGlobal(faults, p, options = {}) {
       count: zoneRows.length,
       vmCount: vmRows.length,
       lengthM: zoneLengthM,
+      traceLengthM,
       failedLengthM,
+      lengthCapped: geometry.capped,
       depthM: zoneDepthM,
       effectiveDepthM,
       elasticM: working.teM,
       bdtM: working.bdtM,
+      reachedBdt,
+      ductileM: ductile,
+      ductileBlockedByMoho,
+      capAtMoho,
       cutsLithosphere: cuts && longEnough,
       damage,
       centroidLon,

@@ -10,7 +10,7 @@
  * ΔCFS uses the same unclamping-positive normal stress as King, Stein & Lin (1994).
  */
 
-import { deltaCfsFromCompressionTensor, haversineM } from "./physics.js";
+import { deltaCfsFromCompressionTensor, destinationPoint, haversineM } from "./physics.js";
 
 export const GRAVITATIONAL_CONSTANT = 6.6743e-11;
 export const VACUUM_PERMEABILITY = 1.25663706212e-6;
@@ -186,6 +186,107 @@ export function clusterFaults(faults, linkDistanceM, radiusM) {
     .sort((a, b) => b.lengthM - a.lengthM);
 }
 
+function unitVector(lonDeg, latDeg) {
+  const lon = (lonDeg * Math.PI) / 180;
+  const lat = (latDeg * Math.PI) / 180;
+  const cosLat = Math.cos(lat);
+  return [cosLat * Math.cos(lon), cosLat * Math.sin(lon), Math.sin(lat)];
+}
+
+/**
+ * Length-weighted mean of positions on the sphere.
+ * A plain average of longitudes fails across the date line and near the poles.
+ */
+export function sphericalCentroid(points) {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (const point of points) {
+    const weight = point.weight > 0 ? point.weight : 1;
+    const [px, py, pz] = unitVector(point.lon, point.lat);
+    x += weight * px;
+    y += weight * py;
+    z += weight * pz;
+  }
+  const norm = Math.hypot(x, y, z);
+  if (!(norm > 0)) return { lon: 0, lat: 0 };
+  return {
+    lon: (Math.atan2(y, x) * 180) / Math.PI,
+    lat: (Math.asin(Math.max(-1, Math.min(1, z / norm))) * 180) / Math.PI,
+  };
+}
+
+/**
+ * Along-strike extent of a connected fault zone.
+ * Endpoints of each trace are projected onto the mean strike through the
+ * spherical centroid. The reported length is that great-circle span, at least
+ * the longest single trace, and never longer than one circumference.
+ * It is not the sum of the traces: parallel faults in one zone must not be
+ * counted once per fault.
+ */
+export function alongStrikeExtentM(faults, radiusM) {
+  const radius = Math.max(radiusM, 1);
+  const circumference = 2 * Math.PI * radius;
+  const traceLengthM = faults.reduce((sum, fault) => sum + Math.max(fault.lengthM || 0, 0), 0);
+  if (!faults.length) {
+    return { extentM: 0, centroidLon: 0, centroidLat: 0, traceLengthM: 0, capped: false, meanStrikeDeg: 0 };
+  }
+  const centroid = sphericalCentroid(faults.map((fault) => ({
+    lon: fault.lon,
+    lat: fault.lat,
+    weight: Math.max(fault.lengthM || 0, 1),
+  })));
+  let cx = 0;
+  let cy = 0;
+  for (const fault of faults) {
+    const weight = Math.max(fault.lengthM || 0, 1);
+    const doubled = 2 * ((fault.strikeDeg || 0) * Math.PI) / 180;
+    cx += weight * Math.cos(doubled);
+    cy += weight * Math.sin(doubled);
+  }
+  const meanStrikeDeg = (Math.atan2(cy, cx) / 2) * (180 / Math.PI);
+  const strike = (meanStrikeDeg * Math.PI) / 180;
+  const lon = (centroid.lon * Math.PI) / 180;
+  const lat = (centroid.lat * Math.PI) / 180;
+  const east = [-Math.sin(lon), Math.cos(lon), 0];
+  const north = [-Math.sin(lat) * Math.cos(lon), -Math.sin(lat) * Math.sin(lon), Math.cos(lat)];
+  const along = [
+    north[0] * Math.cos(strike) + east[0] * Math.sin(strike),
+    north[1] * Math.cos(strike) + east[1] * Math.sin(strike),
+    north[2] * Math.cos(strike) + east[2] * Math.sin(strike),
+  ];
+  const origin = unitVector(centroid.lon, centroid.lat);
+  const angles = [];
+  let longest = 0;
+  for (const fault of faults) {
+    const length = Math.max(fault.lengthM || 0, 0);
+    longest = Math.max(longest, length);
+    const half = Math.min(length / 2, Math.PI * radius);
+    const faultStrike = Number.isFinite(fault.strikeDeg) ? fault.strikeDeg : meanStrikeDeg;
+    for (const sign of [-1, 1]) {
+      const end = half > 0
+        ? destinationPoint(fault.lon, fault.lat, faultStrike, sign * half, radius)
+        : { lon: fault.lon, lat: fault.lat };
+      const vector = unitVector(end.lon, end.lat);
+      const dotOrigin = vector[0] * origin[0] + vector[1] * origin[1] + vector[2] * origin[2];
+      const dotAlong = vector[0] * along[0] + vector[1] * along[1] + vector[2] * along[2];
+      angles.push(Math.atan2(dotAlong, dotOrigin));
+    }
+  }
+  const span = angles.length ? Math.max(...angles) - Math.min(...angles) : 0;
+  let extentM = Math.max(radius * span, Math.min(longest, circumference));
+  const capped = extentM > circumference;
+  extentM = Math.min(extentM, circumference);
+  return {
+    extentM,
+    centroidLon: centroid.lon,
+    centroidLat: centroid.lat,
+    traceLengthM,
+    capped,
+    meanStrikeDeg: ((meanStrikeDeg % 360) + 360) % 360,
+  };
+}
+
 /**
  * Damage from the failed fraction of a zone, healed exponentially.
  * Fresh damage is 1 − exp(−rate × failed/zone). Net damage multiplies by exp(−age/heal).
@@ -305,10 +406,11 @@ export function cmbPowerW({ baseOfCrustPowerW, mantleRadiogenicW, secularFractio
 /**
  * Dipole standoff from pressure balance:
  * R_mp = (μ0 M² / (8 π² P))^(1/6).
- * Returns the planetary radius when there is no moment, so the altitude is zero.
+ * Returns null when there is no moment or no pressure, so callers can show
+ * "n/a (no field)" instead of a standoff of minus the planetary radius.
  */
 export function magnetopauseRadiusM(momentAm2, dynamicPressurePa) {
-  if (!(momentAm2 > 0) || !(dynamicPressurePa > 0)) return 0;
+  if (!(momentAm2 > 0) || !(dynamicPressurePa > 0)) return null;
   const numerator = VACUUM_PERMEABILITY * momentAm2 * momentAm2;
   const denominator = 8 * Math.PI * Math.PI * dynamicPressurePa;
   return (numerator / denominator) ** (1 / 6);
@@ -328,11 +430,11 @@ export function retentionVerdict({
 }) {
   const nominalR = magnetopauseRadiusM(momentAm2, nominalPressurePa);
   const stormR = magnetopauseRadiusM(momentAm2, stormPressurePa);
-  const nominalAlt = nominalR - planetRadiusM;
-  const stormAlt = stormR - planetRadiusM;
+  const nominalAlt = nominalR == null ? null : nominalR - planetRadiusM;
+  const stormAlt = stormR == null ? null : stormR - planetRadiusM;
   const pastPeak = momentAm2 > gunellPeakMomentAm2;
-  const nominalClears = nominalAlt >= exobaseAltitudeM;
-  const stormClears = stormAlt >= exobaseAltitudeM;
+  const nominalClears = nominalAlt != null && nominalAlt >= exobaseAltitudeM;
+  const stormClears = stormAlt != null && stormAlt >= exobaseAltitudeM;
   return {
     nominalRadiusM: nominalR,
     stormRadiusM: stormR,

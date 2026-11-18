@@ -1604,7 +1604,7 @@
             ],
             "source_file": "sd_measurements_qa.csv",
             "method": "Three-point plane on a HiRISE DTM triangle, right-hand rule. dip_deg is dip_3pt, the recomputed three-point solution, not the delivered Dip column. Measured by Wheeler Feer.",
-            "summary": "Mean of Wheeler Feer's four Valles Marineris three-point dips (Marineris1 36.9°, Marineris2 57.9°, Mariners3 45.9°, Marineris4 66.4°): 51.79°. The slider spans the measured minimum to maximum."
+            "summary": "Mean of Wheeler Feer's four Valles Marineris three-point dips (Marineris1 36.9°, Marineris2 57.9°, Marineris3 45.9°, Marineris4 66.4°): 51.79°. The slider spans the measured minimum to maximum."
           },
           "hirise": {
             "kind": "fisher",

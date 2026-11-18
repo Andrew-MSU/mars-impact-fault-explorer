@@ -450,16 +450,26 @@ test("repeated impacts accumulate static stress and viscous relaxation can shed 
   assert.ok(relaxed.every((point) => Math.abs(point.accumulated) < 1));
 });
 
-test("brittle grid does not place samples below the BDT", () => {
+test("brittle grid stops at the Moho when that is shallower than the BDT, and includes the limit", () => {
   const grid = prepareGrid(toySpec());
   for (const segment of grid.segments) {
     for (const depth of segment.depths) {
-      assert.ok(depth.z < 40_000);
+      assert.ok(depth.z <= 40_000);
       assert.ok(depth.z > 0);
     }
+    assert.equal(segment.depths[segment.depths.length - 1].z, 40_000);
   }
-  assert.ok(grid.segments.some((segment) => segment.kinematics === "normal"));
-  assert.ok(grid.segments.some((segment) => segment.kinematics === "thrust"));
+  const capped = prepareGrid(toySpec({
+    thermal: { ...toySpec().thermal, crustM: 15_000, bdtM: 40_000 },
+  }));
+  assert.equal(capped.depthLimitM, 15_000);
+  assert.equal(capped.segments[0].depths.at(-1).z, 15_000);
+  const open = prepareGrid(toySpec({
+    thermal: { ...toySpec().thermal, crustM: 15_000, bdtM: 40_000 },
+    sampling: { spacingM: 30_000, depthSteps: 6, capAtMoho: false },
+  }));
+  assert.equal(open.depthLimitM, 40_000);
+  assert.equal(open.segments[0].depths.at(-1).z, 40_000);
 });
 
 test("shear modulus uses the rock-mass Young's modulus", () => {

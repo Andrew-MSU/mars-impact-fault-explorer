@@ -238,8 +238,14 @@ static-only fraction.
 
 ## Failure with depth
 
-Samples run from the surface to the brittle-ductile transition in eight
-depth steps. Nothing below the BDT is called reactivated. The active BDT,
+Samples run from the surface to a depth limit in eight steps, and the
+deepest sample sits on that limit. With **Cap faults at Moho** on (the
+default), the limit is the shallower of the BDT and the crustal thickness:
+the regional value in local mode (Valles Marineris 45 km, Cerberus Fossae
+35 km, Isidis 15 km) and, in Basin & Global, that same regional value
+inside those windows and `d_crust_global` elsewhere. Turning the cap off
+tests faults down to the BDT even where that is below the Moho. Nothing
+below the BDT is called reactivated. The active BDT,
 surface temperature, mantle heat flux, and crustal heat production are the
 present-day or early-Mars column from the sheet, chosen by the epoch
 toggle.
@@ -470,10 +476,12 @@ Two presets sit next to that baseline:
   It does not invent compositional buoyancy. That is the compositional-flux
   slider, default 0.
 
-The sheet's `M_core` value is the homogeneous-core mass. The 1650 km preset
-copies the bottom of that range, 1.17×10²³ kg, which the sheet note gives
-for the basal-melt case. Until that preset is clicked, a 1650 km radius
-paired with the homogeneous mass implies a high density, and the panel says so.
+The sheet's `M_core` value is the homogeneous-core mass. The page loads on
+the 1650 km baseline, so the core mass starts at the bottom of that range,
+1.17×10²³ kg, which the sheet note gives for the basal-melt case. That is
+the same state as the "1650 km + 150 km melt" preset, including
+\(q_\mathrm{adiabatic}\). Resetting the core-mass row alone restores the
+homogeneous mass and the panel says the density no longer matches 1650 km.
 
 ### Network stress
 
@@ -515,10 +523,34 @@ A failed fault adds
 
 to neighbors inside the transfer range, for a set number of passes. Failed
 faults closer than the link distance form a weak zone. The reported length
-is the sum of member lengths. Depth is the deepest brittle sample that
-failed. The zone cuts the elastic lithosphere when that depth reaches \(T_e\)
-and the length is at least `lid_length_factor` × \(T_e\). Nothing below the
-BDT fails unless the ductile-continuation slider is raised.
+is the along-strike great-circle extent of that connected set: fault
+endpoints are projected onto the mean strike through the spherical
+(vector) centroid, and the span is capped at one circumference. It is not
+the sum of the member traces. Parallel faults in one zone used to add up
+past a Mars circumference (the full catalog is about 360,000 km of trace).
+The sum is still shown beside the extent, and the damage fraction still
+uses failed-trace length over total-trace length. Depth is the deepest
+brittle sample that failed, and that sample cannot lie below the Moho
+while the cap is on. The zone cuts the elastic lithosphere when the
+effective depth reaches \(T_e\) and the along-strike extent is at least
+`lid_length_factor` × \(T_e\).
+
+Ductile continuation adds `ductile_fraction` × \((T_e - \mathrm{BDT})\)
+only when brittle failure reaches the BDT. The depth grid includes the
+brittle limit, so that test can succeed. If the Moho cap stops the fault
+above the BDT, the slider adds nothing and the panel says so. Present-day
+crust (about 50 km, thinner in the basins) is above the 100 km BDT, so
+the slider is idle on the present-day cap. Early Mars has a 30 km BDT
+inside the global crust, so a fault that fails to the BDT can use it,
+and the added depth is still not allowed below the Moho.
+
+\(T_e\) follows the epoch. Present day stays 100 km. Early Mars sets 15 km,
+from the 14.5 km southern-hemisphere fit in McKenzie, Barnett & Yuan
+(2002, doi:10.1016/S0012-821X(01)00555-6). McGovern et al. (2002,
+doi:10.1029/2002JE001854) find elastic thickness declining toward older
+loads. 15 km is that flexure thickness, not the sheet's 30 km early BDT,
+and it is not chosen to produce a dynamo. The force-balance lithosphere
+thickness \(h\) is a separate slider and stays at its own value.
 
 The seed selector is either those mapped faults (default) or every SIM 3292
 trace whose midpoint lies in the Valles Marineris window of `regions.json`,
@@ -550,8 +582,8 @@ a mantle-lithosphere density equal to the mantle density minus a depletion.
 Depleted, fertile, and eclogitized buttons set those sliders. They are
 starting points.
 
-If subduction initiates, a slab of thickness \(h\), width equal to the zone
-length, and speed \(v\) carries a temperature contrast between the CMB
+If subduction initiates, a slab of thickness \(h\), width equal to the
+along-strike extent (not the summed trace length), and speed \(v\) carries a temperature contrast between the CMB
 temperature and the geotherm at the base of the lithosphere. The extra CMB
 flux is that power spread over the core surface. Onset is the mantle-column
 thickness divided by \(v\). Duration is the zone length divided by \(v\).
@@ -567,9 +599,12 @@ and the panel's radio scale multiplies it again.
 
 In steady state the CMB power is the heat flow at the base of the crust
 minus radiogenic heating below the crust, minus a secular fraction of the
-base-of-crust power. Positive secular fraction means the mantle is cooling
-and supplying part of \(q_m\) itself. The molten-layer fraction then passes
-that power into the metal. The adiabatic threshold is
+base-of-crust power. The area on \(q_m\) is the sphere at
+\(R - d_\mathrm{crust}\) (about 3346 km for a 50 km crust), not the
+core-plus-molten-layer radius. Positive secular fraction means the mantle
+is cooling and supplying part of \(q_m\) itself. The molten-layer fraction
+then passes that power into the metal, and \(q_\mathrm{cmb}\) is that
+power divided by the metallic-core surface area. The adiabatic threshold is
 
 \[
 q_\mathrm{ad} = k_c \alpha g_c T_\mathrm{cmb} / c_p, \qquad g_c = GM_c/R_c^2.
@@ -589,7 +624,13 @@ convecting shell thickness, outer radius minus inner radius.
 
 Spin stirring uses a fraction of \(m v_\mathrm{tangential} R\). The core is
 left with \(\Delta\Omega = L / I_\mathrm{mantle}\). It turns on when
-\(\Delta\Omega/\Omega\) exceeds the threshold slider. A fraction of the
+\(\Delta\Omega/\Omega\) exceeds the threshold slider. The default 0.02 is
+an assumption, not a threshold from Le Bars et al. (2011); their criterion
+is an elliptical instability, not a 2% spin change. Inside an 80 km
+diameter cap the ratio stays near \(10^{-3}\) and cannot reach 0.02. Only
+impactors near the 400 km end of the slider, at high speed and a shallow
+angle, can cross it, and those impacts are flagged as outside the
+point-load model's validity. A fraction of the
 differential-rotation energy is put in the magnetic field. Core heating
 deposits a fraction of the coupled energy in a layer at the top of the core
 and subtracts \(E/(A t_\mathrm{diff})\) from the CMB flux for the diffusion
@@ -611,7 +652,13 @@ value times a factor, default 5, which is an assumption. The upper atmosphere
 defaults to their exobase altitude, \(r_\mathrm{exo}-r_\mathrm{Mars} = 220\,\mathrm{km}\).
 
 A case is protective only when the standoff altitude clears that height at
-both pressures and the moment is past the Gunell cusp-escape peak. The paper's
+both pressures and the moment is past the Gunell cusp-escape peak. A moment
+of zero has no magnetopause: the panel shows "n/a (no field)" rather than
+an altitude of minus the planetary radius. The fast pathway is protective
+only when the impact itself supplies protection the background does not
+already have (stirring, or a fast thermal moment that the background lacks).
+Core-top heating can remove a background dynamo; that is reported separately
+and does not set the fast-protective flag. The paper's
 text places that peak near \(2.5\times 10^{24}\,\mathrm{A\,m}^2\), about 30
 times Earth's moment of \(7.77\times 10^{22}\,\mathrm{A\,m}^2\). Their
 Mars-like curves are in the same figure; the slider is there so a different
@@ -716,9 +763,9 @@ Each of these is a slider. The default is a starting value, not a measurement.
 | Cascade fraction, exponent, stress drop, range | 0.15, 3, 3 MPa, 400 km | see sliders | Not an Okada cascade. |
 | Link distance | 150 km | 10–1500 | What "connected" means. |
 | Damage rate and healing time | 1, 100 Myr | see sliders | One-parameter damage. |
-| Elastic thickness | 100 km | 10–300 | Matches the present-day BDT on the sheet and is not the same quantity. |
-| Lid-break length | 3 Te | 1–20 | |
-| Ductile continuation | 0 | 0–1 | Default refuses to fail rock below the BDT. |
+| Elastic thickness | 100 km present, 15 km early | 10–300 | Present day matches the sheet BDT. Early Mars is the McKenzie et al. (2002) southern-hemisphere flexure thickness (14.5 km, used as 15 km). |
+| Lid-break length | 3 × along-strike extent / Te | 1–20 | The length is the along-strike extent, capped at one circumference. |
+| Ductile continuation | 0 | 0–1 | Adds depth only when failure reaches the BDT. Idle when the Moho cap stops the fault above the BDT. |
 | Mantle density | 3500 kg/m³ | 3300–3700 | Not in the sheet. |
 | Depletion | 50 kg/m³ | 0–150 | Order of a depleted residue. |
 | Eclogite density | 3500 kg/m³ | 3200–3800 | |
@@ -732,7 +779,7 @@ Each of these is a slider. The default is a starting value, not a measurement.
 | Molten-layer transfer | 1 | 0–1 | Default follows Khan's argument against a stable iron blanket. |
 | Secular fraction | 0 | −1–1 | Steady state. |
 | Compositional flux | 0 | 0–30 mW/m² | The 613 km preset does not set this. |
-| Spin coupling and ΔΩ/Ω threshold | 0.1, 0.02 | see sliders | Le Bars et al. (2011) is the mechanism, not these numbers. |
+| Spin coupling and ΔΩ/Ω threshold | 0.1, 0.02 | see sliders | Le Bars et al. (2011) is the mechanism, not these numbers. 0.02 is not reached except at the extreme end of the 400 km diameter slider, which is outside model validity. |
 | Ohmic fraction and stirring duration | 0.01, 10⁴ yr | see sliders | |
 | Core-heat fraction and lid thickness | 0.01, 100 km | see sliders | Roberts et al. (2009) is the mechanism. |
 | Storm pressure factor | 5 | 1–40 | Gunell's table is a nominal wind. |
@@ -744,6 +791,8 @@ Each of these is a slider. The default is a starting value, not a measurement.
 ### Further reading for this section
 
 - Bi, H., et al. (2025). Seismic detection of a 600-km solid inner core in Mars. *Nature*. doi:10.1038/s41586-025-09361-9
+- McGovern, P. J., Solomon, S. C., Smith, D. E., Zuber, M. T., Simons, M., Wieczorek, M. A., Phillips, R. J., Neumann, G. A., Aharonson, O., & Head, J. W. (2002). Localized gravity/topography admittance and correlation spectra on Mars: Implications for regional and global evolution. *Journal of Geophysical Research*, 107(E12), 5136. doi:10.1029/2002JE001854
+- McKenzie, D., Barnett, D. N., & Yuan, D.-N. (2002). The relationship between Martian gravity and topography. *Earth and Planetary Science Letters*, 195, 1–16. doi:10.1016/S0012-821X(01)00555-6
 - Christensen, U. R., Holzwarth, V., & Reiners, A. (2009). Energy flux determines magnetic field strength of planets and stars. *Nature*, 457, 167–169.
 - Green, J. L., et al. (2017). A future Mars environment for science and exploration. Planetary Science Vision 2050 Workshop, abstract 8250.
 - Gunell, H., et al. (2018). Why an intrinsic magnetic field does not protect a planet against atmospheric escape. *Astronomy & Astrophysics*, 614, L3. doi:10.1051/0004-6361/201832934
