@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/physics.test.js",
+    "test": "node --test test/physics.test.js test/dips.test.js",
     "test:py": "python3 test/test_parameters.py"
   },
   "dependencies": {

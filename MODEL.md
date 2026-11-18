@@ -161,7 +161,9 @@ rake makes CFS more negative. At \(\chi = 1\), \(C\) and \(\phi\) consistent,
 and the Andersonian optimal dip (\(45^\circ + \phi/2\) for normal faults,
 \(45^\circ - \phi/2\) for thrusts), CFS is zero to numerical precision.
 That check is a unit test. The sheet dips (60° and 30°) are the optimal
-angles for \(\phi \approx 30^\circ\).
+angles for \(\phi \approx 30^\circ\). The explorer's default dips are the
+measured slopes in [Fault dip](#fault-dip). 60° and 30° remain available
+as the literature source.
 
 ## Static stress from the missing mass
 
@@ -287,15 +289,121 @@ stress is reapplied at the impact instant only. Excavated area stays
 failed. The time-series threshold is the first impact after which CFS
 crosses zero, drawn on the plot.
 
+## Fault dip
+
+The dip angle on a segment is the regional slider for that fault's
+kinematics. The **dip source** chooses the default and the slider range.
+Reset on a dip row restores the active source for the current region.
+Changing region or source loads that combination's default.
+
+**Wheeler measured** is the default.
+
+- Valles Marineris normal faults use the mean of Wheeler Feer's four
+  three-point HiRISE dips: 36.9°, 57.9°, 45.9°, and 66.4°. The mean is
+  51.79°. The slider runs from the smallest of those measurements to the
+  largest.
+- Cerberus Fossae normal faults use his five three-point dips. Cerberus3
+  was delivered as 90°. That value is an error. The same triplet
+  recomputes to 61.3° (`dip_3pt`), and a HiRISE plane through the triangle
+  is about 61.5°. The mean uses 61.3° and is 54.57°.
+
+**HiRISE programmatic** replaces the slider with an n-weighted mean of
+Fisher means of 60 m wall planes.
+
+- Cerberus Fossae uses the opposed polygon walls 195/56 (n = 56,
+  \(\kappa = 9.75\), \(\alpha_{95} = 6.4^\circ\)) and 021/54 (n = 76,
+  \(\kappa = 9.71\), \(\alpha_{95} = 5.5^\circ\)). The mean is 54.72°.
+  The slider spans each mean ± its \(\alpha_{95}\).
+- Valles Marineris uses the outline walls 232/27 (n = 34) and 336/26
+  (n = 20). The mean is 26.67°. Those outline slopes are gentler than
+  Wheeler's mid-wall sites.
+- The SIM 3292 graben-axis means (Cerberus 198/50 and 022/51; Valles
+  Marineris 194/21 and 016/22) and the Valles Marineris contact means
+  (205/29 and 020/28) stay in the catalog. A segment can take their dip
+  direction when its strike matches. They do not set the slider. The SIM
+  corridor also picks lower adjacent walls, about 4° gentler at Cerberus,
+  and the contact lines are unit boundaries.
+
+**Literature default** is the parameter sheet: 60° for normal faults
+(range 50–70°) and 30° for thrusts (range 20–40°). This is the only
+source that still uses those two numbers as the dip.
+
+Isidis has no three-point measurement. The Wheeler source and the HiRISE
+source both use the Feature 11 wrinkle-ridge Fisher mean, 327/16
+(15.61°, n = 5, \(\kappa = 343\), \(\alpha_{95} = 4.1^\circ\)). The
+polygon-wall fit at Feature 11 is three class-B points and is not used.
+The page flags this default as low confidence. Five flank slopes on one
+ridge are a thin sample, and a wrinkle-ridge flank understates the fault
+dip. The literature source puts Isidis thrusts back at 30°.
+
+A fault type with no local measurement keeps the literature value.
+Valles Marineris and Cerberus Fossae thrusts have no local wrinkle-ridge
+mean. Feature 11 belongs to Isidis and is not reused there. Isidis normal
+faults have no local measurement. Feature 11's contact means, 217/28
+(n = 17) and 030/21 (n = 10), are unit-boundary slopes and are not
+applied to the faults drawn here.
+
+### Dip direction
+
+SIM 3292 traces are graben axes and ridge crests, not planes. Dip
+direction is chosen per segment.
+
+- If the segment's strike is within 30° of a measured wall set's axial
+  strike, and the segment's right-hand normal (strike + 90°) is within
+  45° of that wall's dip direction, the segment takes the measured dip
+  direction. The 45° cut is the facing limit used when those walls were
+  detected.
+- When several wall sets fit, the direction closest to the right-hand
+  normal wins. A trace is not flipped onto the opposite wall of a graben.
+  At Cerberus, a segment striking about 110° takes the south-dipping wall
+  (about 198°), and the opposite digitization takes the north-dipping
+  wall (about 021°).
+- A segment that is not subparallel to a measured wall keeps the
+  right-hand normal of its own trace. A north-south graben in an
+  east-west system is the example.
+- The literature source does not substitute a measured direction.
+- `dip_azimuth_deg` on the GeoJSON feature still overrides the fit, and
+  `dip_deg` still overrides the slider.
+
+Wheeler's nine triangles are not copied onto individual SIM traces. In
+Valles Marineris the nearest SIM tectonic line is tens to more than a
+hundred kilometres from each site, and one wall triangle should not set
+the dip of a fault that is hundreds of kilometres long. The regional mean
+is the slider. Adopting a wall direction changes the azimuth only. The
+dip angle stays the slider for that fault type.
+
+### What the numbers are
+
+These are slopes of the topographic surface, measured on HiRISE DTMs.
+They proxy the fault dip near the surface. A degraded wall, a talus
+apron, or a wrinkle-ridge flank can be much shallower than the fault
+that made it. That limit is most serious at Isidis, where the only
+measurement is a 16° ridge flank.
+
+Cerberus Fossae's HiRISE statistics come from the four DTMs that cover
+Wheeler's polygons, all near 157–163°E, rather than from the whole fossa
+system. The Valles Marineris outline means are wherever that generalized
+polygon crosses a DTM, not a systematic sample of the chasma walls.
+MDEM200M dips are not used. At his sites the 200 m grid underestimates
+the HiRISE wall slopes by tens of degrees.
+
+Counts, \(\kappa\), \(\alpha_{95}\), and the source file for every value
+are in `data/measured_dips.json`. `scripts/convert_measured_dips.py`
+rebuilds that file from the CSVs in `data/source/measured/`. Those tables
+were computed in the private research repository
+`Andrew-MSU/mars-tectonic-reactivation` and are committed here so this
+public explorer can default to them.
+
 ## What this will not do
 
 - No self-consistent thermal evolution. The epoch toggle switches four
   sheet columns and the creep law. It does not integrate radionuclides.
 - No pore-pressure diffusion, no undrained \(\Delta P\), no melting, and
   no isostatic rebound beyond the elastic point load and the Maxwell decay.
-- Fault dip azimuth defaults to the right-hand normal of the digitized
-  SIM 3292 trace. Those traces are graben axes and wrinkle-ridge crests,
-  not planes with a measured dip direction.
+- Fault traces are still SIM 3292 graben axes and wrinkle-ridge crests.
+  The dip angle is a regional measured slope, not a plane fitted to each
+  trace. The dip direction is a measured wall azimuth when the segment is
+  subparallel to that wall, and the right-hand normal of the trace otherwise.
 - Regional stress is one Andersonian regime. A wrinkle ridge inside a
   normal-faulting Valles Marineris stays hard to reactivate, which is
   the point of resolving the rake.
