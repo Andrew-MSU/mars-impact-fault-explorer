@@ -31,9 +31,22 @@ The page is one screen.
   near failure, reactivated, or inside the excavation cavity. The south wall
   is a cutaway: crust above the Moho, mantle below, with the BDT marked.
   Vertical exaggeration is display-only.
+- **Dip source** chooses the fault dip. **Wheeler measured** is the default:
+  about 52° for Valles Marineris normal faults (his four three-point dips)
+  and about 55° for Cerberus Fossae (his five, with Cerberus3 corrected
+  from the delivered 90° to the recomputed 61.3°). Isidis has no manual
+  measurement, so its thrust dip is the low-confidence Feature 11
+  wrinkle-ridge Fisher mean, about 16°. **HiRISE programmatic** switches
+  to the Fisher means of the HiRISE wall planes. **Literature default**
+  restores the sheet values, 60° normal and 30° thrust. The two dip
+  sliders keep that source's range. Changing region loads that region's
+  values. The caveat under the control is part of the result: these are
+  surface wall and scarp slopes, a proxy for near-surface fault dip, and
+  talus or a degraded scarp can make them too shallow, especially at Isidis.
 - **Sliders** are grouped. Every sheet parameter shows its tabulated default,
   the parsed range, the units, and the source DOI. Reset on a row restores
-  the sheet value. Parameters under "VPLanet / interior" are stored and
+  the sheet value, except the two dip rows, which restore the active dip
+  source. Parameters under "VPLanet / interior" are stored and
   exported; the fault calculation does not read them.
 - The **results** panel is the verdict: magnitude, crater size, the fraction
   of regime-matching fault area within 250 km that fails, and the same
@@ -44,7 +57,7 @@ The page is one screen.
   A repeated-impact series at the chosen interval, with Maxwell relaxation.
 - **Copy link** puts the current scenario in the query string. **Export JSON**
   and **Export CSV** download the inputs and the results. **Reset** returns
-  the sheet defaults.
+  the sheet defaults and the measured dip for the current region.
 
 A 1 km stony impactor at 10 km/s (Mw about 7.3 with the default efficiency)
 does not reactivate faults at the default sites. The sweep is where the
@@ -118,9 +131,13 @@ tagged normal. Wrinkle ridges are tagged thrust. One Isidis scarp that sits
 on Amenthes Rupes is tagged thrust and labeled provisional: SIM 3292 calls it
 an erosional scarp, and the thrust interpretation is Schultz & Watters (2001).
 
-These are ridge crests and graben axes, not dipping planes. Dip comes from
-the sheet sliders (60° normal, 30° thrust). Dip azimuth defaults to the
-right-hand normal of the digitized line.
+These are ridge crests and graben axes, not dipping planes. The default
+dip is Wheeler Feer's HiRISE three-point mean for that region, described
+in [MODEL.md](MODEL.md#fault-dip) and stored in `data/measured_dips.json`.
+The literature values (60° normal, 30° thrust) are the fallback source.
+Where a segment is subparallel to a measured wall, its dip direction is
+that wall's dip direction. Otherwise it is the right-hand normal of the
+digitized line.
 
 To replace them with your own GIS layer, overwrite:
 
@@ -132,10 +149,35 @@ public/faults/isidis_planitia.geojson
 
 Keep a GeoJSON `FeatureCollection` of `LineString`s in degrees
 `(longitude, latitude)`, west negative. Required property: `kinematics`
-of `normal` or `thrust`. Optional: `dip_deg`, `dip_azimuth_deg` (clockwise
-from north, the direction of dip), `name`, `id`. The same note is in each
+of `normal` or `thrust`. Optional: `dip_deg` (overrides the dip slider),
+`dip_azimuth_deg` (clockwise from north; overrides the measured-wall or
+right-hand dip direction), `name`, `id`. The same note is in each
 file as `schema_note`. Rebuild or refresh after replacing a file; Pages
 picks up the change on the next deploy.
+
+### Measured dips
+
+`data/measured_dips.json` is the dip catalog the page loads. Wheeler's
+nine three-point measurements, the HiRISE Fisher means, and the opposed
+graben-wall pairs are committed as CSV under `data/source/measured/` so
+the numbers can be regenerated:
+
+```bash
+python3 scripts/convert_measured_dips.py
+```
+
+Cerberus3 is stored as the recomputed 61.3°, not the delivered 90°.
+Every value keeps its source file, method, sample count, and, where the
+Fisher mean has them, \(\kappa\) and \(\alpha_{95}\). Rows are marked
+`wheeler_manual` or `hirise_programmatic`. The literature 60°/30° block
+is copied from `data/parameters.json`; re-run the script if those two
+sheet rows change.
+
+These tables were computed in the private research repository
+`Andrew-MSU/mars-tectonic-reactivation` and are now part of this public
+repository. They are surface slopes from HiRISE DTMs, not surveyed fault
+planes. Degraded walls, talus, and wrinkle-ridge flanks can understate
+the fault dip, especially the 16° Isidis ridge.
 
 `scripts/prepare_geodata.py` can rebuild both the tiles and the fault files.
 It needs network access to the PDS host and to the USGS Astrogeology
@@ -146,14 +188,21 @@ pygeoapi collection `mars/global_geologic_map/structure`.
 ```bash
 npm test
 python3 test/test_parameters.py
+python3 test/test_measured_dips.py
 ```
 
-The physics tests check that magnitude grows with energy, diameter, velocity,
-and seismic efficiency; that the crater diameter matches the Collins–Holsapple
+`npm test` runs the physics tests and `test/dips.test.js`. The physics
+tests check that magnitude grows with energy, diameter, velocity, and
+seismic efficiency; that the crater diameter matches the Collins–Holsapple
 expression; that extension raises ΔCFS on a normal fault and lowers it on a
 thrust (and the reverse for compression); that a critically stressed optimal
 fault sits on the failure envelope; and that repeated impacts accumulate and
-then relax. The Python tests check the range parser and the committed catalog.
+then relax. The dip tests check that the defaults load from the measured
+catalog, that the Wheeler / HiRISE / literature selector switches the
+values, and that a segment subparallel to an opposed graben wall takes
+that wall's dip direction. The Python tests check the range parser, the
+parameter catalog, and that `data/measured_dips.json` matches the converter
+and the source CSVs, including the Cerberus3 correction.
 
 ## GitHub Pages
 
@@ -175,7 +224,7 @@ still the preview.
 | `src/main.js` | Page, sliders, URL, export. |
 | `src/scene.js` | three.js terrain, fault planes, cutaway. |
 | `src/plots.js` | Canvas figures. |
-| `data/` | Sheet JSON, region metadata, geodata provenance. |
+| `data/` | Sheet JSON, measured dips, region metadata, geodata provenance. |
 | `public/terrain`, `public/faults` | Static tiles. Vite copies them into `dist/`. |
 
 A FEM stress field can replace `runImpact` without touching the page, as long
@@ -187,8 +236,11 @@ the epoch preset.
 
 ## Next modeling phase
 
-1. **Wheeler's GIS fault layer**, with a real dip and dip azimuth per fault,
-   dropped in as the GeoJSON above. SIM 3292 axes are only a stand-in.
+1. **Wheeler's GIS fault traces.** Dip now defaults to his three-point
+   measurements and to the HiRISE wall orientations, but the lines are still
+   SIM 3292 axes. Replacing those lines with his mapped scarps is still the
+   next geometric step. A per-feature `dip_deg` and `dip_azimuth_deg` will
+   override the regional slider and the wall-fit direction.
 2. **FEM coupling.** Replace the Boussinesq point load with the local
    finite-element stress change on those planes. Keep ΔCFS and the same
    depth sampling so the page still draws.
@@ -208,6 +260,10 @@ the epoch preset.
 - **Faults:** real USGS SIM 3292 structures, with the kinematics assignment
   described above. Not a traced cartoon, and not yet Wheeler's fault layer.
 - **Parameters:** the project spreadsheet, converted by `scripts/convert_parameters.py`.
+- **Dips:** Wheeler Feer's nine HiRISE three-point measurements, and the
+  programmatic HiRISE Fisher means, converted by `scripts/convert_measured_dips.py`.
+  Previously in the private repository `Andrew-MSU/mars-tectonic-reactivation`;
+  now committed here. The 60°/30° sheet dips are the literature fallback only.
 - **Craters, magnitude, Coulomb stress, creep:** the relations in MODEL.md.
   Seismic efficiency, stress drop, excavation fraction, \(Q\), criticality,
   pore pressure, and conductivity are explicit assumptions with sliders.

@@ -27,8 +27,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Parameter catalog tests
-        run: python3 test/test_parameters.py
+      - name: Data catalog tests
+        run: |
+          python3 test/test_parameters.py
+          python3 test/test_measured_dips.py
       - name: Install, physics tests, static build
         run: |
           npm ci

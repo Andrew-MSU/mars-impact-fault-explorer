@@ -3,7 +3,7 @@
     {
       "id": "valles_marineris",
       "name": "Valles Marineris",
-      "summary": "Equatorial canyon system on the east flank of Tharsis. Extensional troughs and grabens; the spreadsheet normal-fault dip applies.",
+      "summary": "Equatorial canyon system on the east flank of Tharsis. Extensional troughs and grabens. The default normal-fault dip is the mean of Wheeler Feer's four HiRISE three-point measurements (51.79°).",
       "west": -108.0,
       "east": -42.0,
       "south": -18.0,
@@ -32,7 +32,7 @@
     {
       "id": "cerberus_fossae",
       "name": "Cerberus Fossae",
-      "summary": "Young graben system in Elysium Planitia, southeast of Elysium Mons. The long fossae are the normal-fault targets.",
+      "summary": "Young graben system in Elysium Planitia, southeast of Elysium Mons. The long fossae are the normal-fault targets. The default dip is the mean of Wheeler's five three-point measurements (54.57°, with Cerberus3 corrected from 90° to 61.3°).",
       "west": 153.0,
       "east": 176.0,
       "south": 4.0,
@@ -61,7 +61,7 @@
     {
       "id": "isidis_planitia",
       "name": "Isidis Planitia",
-      "summary": "Noachian impact basin with a thin crust. Wrinkle ridges and the Amenthes Rupes scarp are treated as thrusts (spreadsheet dip 30\u00b0).",
+      "summary": "Noachian impact basin with a thin crust. Wrinkle ridges and the Amenthes Rupes scarp are treated as thrusts. There is no manual dip here; the default is the low-confidence Feature 11 wrinkle-ridge Fisher mean (15.61°).",
       "west": 78.0,
       "east": 116.0,
       "south": -2.0,

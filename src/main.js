@@ -2,6 +2,14 @@ import catalog from "../data/parameters.json";
 import references from "../data/references.json";
 import regionFile from "../data/regions.json";
 import { MARS_GRAVITY, azimuthDeg, destinationPoint, haversineM } from "./model/physics.js";
+import {
+  DEFAULT_DIP_SOURCE,
+  DIP_CAVEAT,
+  DIP_FIT_SUMMARY,
+  DIP_SOURCES,
+  resolveDip,
+  resolveDipAzimuth,
+} from "./model/dips.js";
 import { LOCAL_RADIUS_M, onsetDiameter, prepareGrid, repeatedImpacts, runImpact, stressHistory, sweepDiameters } from "./model/scenario.js";
 import { logSpace } from "./model/physics.js";
 import { createView, makeProjector } from "./scene.js";
@@ -29,6 +37,7 @@ const AUX = {
 };
 
 const CATEGORY_ORDER = ["Rheology", "Creep", "Thermal", "Fault geometry", "Crustal structure", "VPLanet / interior"];
+const DIP_KEYS = { theta_normal: "normal", theta_thrust: "thrust" };
 
 const app = document.querySelector("#app");
 const state = createState();
@@ -120,6 +129,7 @@ document.querySelector("#reset").addEventListener("click", () => {
   const region = currentRegion();
   state.regime = region.regime_default;
   state.impact = { ...region.default_impact };
+  applyDipDefaults(state);
   history.replaceState(null, "", location.pathname);
   syncControls();
   schedule(true);
@@ -157,7 +167,7 @@ function createState() {
   for (const parameter of catalog.parameters) values[parameter.key] = parameter.value;
   const aux = {};
   for (const [key, spec] of Object.entries(AUX)) aux[key] = spec.value;
-  return {
+  const next = {
     regionId: REGIONS[0].id,
     epoch: "present",
     creepMode: "dry_diabase",
@@ -167,9 +177,37 @@ function createState() {
     impact: { ...REGIONS[0].default_impact },
     selectedFaultId: null,
     showSubsurface: true,
+    dipSource: DEFAULT_DIP_SOURCE,
     values,
     aux,
   };
+  applyDipDefaults(next);
+  return next;
+}
+
+function applyDipDefaults(target) {
+  for (const [key, kinematics] of Object.entries(DIP_KEYS)) {
+    target.values[key] = resolveDip({
+      regionId: target.regionId,
+      source: target.dipSource,
+      kinematics,
+    }).dipDeg;
+  }
+}
+
+function dipSliderSpec(key) {
+  const resolved = resolveDip({
+    regionId: state.regionId,
+    source: state.dipSource,
+    kinematics: DIP_KEYS[key],
+  });
+  return { ...parameter(key), value: resolved.dipDeg, min: resolved.min, max: resolved.max, log: false, resolved };
+}
+
+function specFor(row) {
+  if (row.dataset.aux) return AUX[row.dataset.aux];
+  if (row.dataset.key in DIP_KEYS) return dipSliderSpec(row.dataset.key);
+  return parameter(row.dataset.key);
 }
 
 function currentRegion() {
@@ -183,6 +221,7 @@ function selectRegion(id, resetPlace) {
     state.regime = region.regime_default;
     state.impact = { ...region.default_impact };
     state.selectedFaultId = null;
+    applyDipDefaults(state);
   }
   syncControls();
   loadRegion(region);
@@ -282,6 +321,8 @@ function buildSpec(region, featureCollection) {
       kinematics,
       dipDeg: dip,
       dipAzimuthDeg: Number.isFinite(feature.properties.dip_azimuth_deg) ? feature.properties.dip_azimuth_deg : null,
+      regionId: region.id,
+      dipSource: state.dipSource,
       coordinates: feature.geometry.coordinates,
     };
   });
@@ -396,6 +437,10 @@ function renderResults() {
   const region = latest.region;
   const source = result.source;
   const regimeName = state.regime === "thrust" ? "thrust" : "normal";
+  const activeDip = resolveDip({ regionId: region.id, source: state.dipSource, kinematics: regimeName });
+  const sourceLabel = DIP_SOURCES.find((item) => item.id === state.dipSource)?.label || state.dipSource;
+  const segmentCount = latest.grid.segments.length;
+  const fittedCount = latest.grid.segments.filter((segment) => segment.dipAzimuthSource === "measured").length;
   const pct = (value) => (value == null ? "—" : `${(value * 100).toFixed(1)}%`);
   const onset = latest.sweep ? onsetDiameter(latest.sweep, "fractionLocal") : null;
   const onsetStatic = latest.sweep ? onsetDiameter(latest.sweep, "fractionLocalStatic") : null;
@@ -405,7 +450,8 @@ function renderResults() {
   const critical = result.critical;
   const host = document.querySelector("#results");
   host.innerHTML = `
-    <p class="tag">${region.name} · ${state.epoch === "early" ? "early Mars" : "present day"} · ${regimeName} regime</p>
+    <p class="tag">${region.name} · ${state.epoch === "early" ? "early Mars" : "present day"} · ${regimeName} regime · dip ${formatNumber(activeDip.dipDeg)}° · ${escapeHtml(sourceLabel)}${activeDip.lowConfidence ? " · low confidence" : ""}</p>
+    <p class="caveat">${escapeHtml(DIP_CAVEAT)}</p>
     <h2>${verdict(result, regimeName)}</h2>
     <p class="verdict">${onsetText(onset, onsetStatic, regimeName)}</p>
     <dl class="metrics">
@@ -435,7 +481,7 @@ function renderResults() {
         </tr>`).join("")}
       </tbody>
     </table>
-    <p class="meta">CFS is in MPa and includes the background deficit, so negative means still stable. The table shows the eight faults closest to failure.</p>
+    <p class="meta">${fittedCount} of ${segmentCount} fault segments use a measured dip direction. The others use the right-hand normal of the trace. CFS is in MPa and includes the background deficit, so negative means still stable. The table shows the eight faults closest to failure.</p>
   `;
 }
 
@@ -467,7 +513,7 @@ function buildControls() {
   host.append(group("Impact scenario", "These are scenario inputs. They are not columns in the parameter sheet.", auxBlock([
     "diameter_m", "velocity_m_s", "density_impactor", "angle_deg", "efficiency",
   ]), true));
-  const place = group("Where and how often", "Click the terrain, or set a distance from a mapped fault. The series uses the repeat interval.", `
+  const place = group("Where and how often", "Click the terrain, or set a distance from a mapped fault. The series uses the repeat interval. Changing region or dip source loads that combination's dip.", `
     <div class="row">
       <header><label for="fault-select">Reference fault</label></header>
       <select id="fault-select"></select>
@@ -485,6 +531,7 @@ function buildControls() {
       <p class="meta">Sets the background stress. The fraction and the sweep use faults of this type. The other structures are still drawn.</p>
     </div>
   `, true);
+  place.querySelector("div").append(dipSourceBlock());
   place.append(auxBlock(["interval_years", "n_events", "exaggeration"]));
   host.append(place);
   host.append(group("Stress and strength", "Background stress, and which sheet values the failure envelope uses.", `
@@ -511,13 +558,31 @@ function buildControls() {
       ? "Exported for a later VPLanet run. The fault calculation does not read these."
       : category === "Thermal"
         ? "The epoch toggle chooses which of T_s, q_m, H, and Z_BDT is active. Both columns stay editable."
-        : "Sheet value, range, and DOI. Reset restores the tabulated value.";
+        : category === "Fault geometry"
+          ? "These two sliders are the dip angles the calculation uses. Their defaults and ranges follow the dip source and the region. Reset on a row restores that default. The sheet values 60° and 30° are the literature source only."
+          : "Sheet value, range, and DOI. Reset restores the tabulated value.";
     const body = document.createElement("div");
     for (const item of parameters) body.append(parameterRow(item));
     host.append(group(category, note, body, category !== "VPLanet / interior" && category !== "Creep"));
   }
   host.append(assumptions());
   wireControls();
+}
+
+function dipSourceBlock() {
+  const row = document.createElement("div");
+  row.className = "row";
+  const options = DIP_SOURCES.map((source) => `<option value="${source.id}">${escapeHtml(source.label)}</option>`).join("");
+  row.innerHTML = `
+    <header><label for="dip-source">Dip source</label></header>
+    <select id="dip-source" class="dip-source">${options}</select>
+    <p class="meta" id="dip-source-note"></p>
+    <p class="meta" id="dip-fit-note"></p>
+    <p class="caveat" id="dip-caveat"></p>
+  `;
+  row.querySelector("#dip-caveat").textContent = DIP_CAVEAT;
+  row.querySelector("#dip-fit-note").textContent = DIP_FIT_SUMMARY;
+  return row;
 }
 
 function group(title, note, body, open) {
@@ -574,6 +639,7 @@ function parameterRow(item) {
   row.className = "row";
   row.dataset.key = item.key;
   const doi = item.doi ? `https://doi.org/${item.doi}` : "";
+  const dip = item.key in DIP_KEYS;
   row.innerHTML = `
     <header>
       <label for="p-${item.key}">${item.name}<span class="badge" data-badge hidden></span></label>
@@ -584,11 +650,11 @@ function parameterRow(item) {
       <input data-number type="number" />
       <button type="button" class="linkish" data-reset>reset</button>
     </div>
-    <div class="meta">${item.units}. Sheet default ${formatNumber(item.value)}. Range ${formatNumber(item.min)}–${formatNumber(item.max)}.
+    <div class="meta"${dip ? " data-dip-meta" : ""}>${dip ? "" : `${item.units}. Sheet default ${formatNumber(item.value)}. Range ${formatNumber(item.min)}–${formatNumber(item.max)}.
       ${doi ? `<a href="${doi}" target="_blank" rel="noreferrer">doi:${item.doi}</a>.` : ""}
-      ${item.material ? ` ${item.material}.` : ""}
+      ${item.material ? ` ${item.material}.` : ""}`}
     </div>
-    ${item.parse_note ? `<div class="meta">${item.parse_note}</div>` : ""}
+    ${!dip && item.parse_note ? `<div class="meta">${item.parse_note}</div>` : ""}
   `;
   return row;
 }
@@ -602,7 +668,9 @@ function assumptions() {
       <ul>
         <li>This is a first-order elastic and Coulomb calculation, not a finite-element model and not a VPLanet run. Equations and citations are in MODEL.md.</li>
         <li>Terrain is real MOLA MEGDR topography (32 pixels per degree), clipped and averaged. Fault lines are real USGS SIM 3292 structures. They are graben axes and wrinkle-ridge crests, not surveyed fault planes.</li>
-        <li>Dip comes from the spreadsheet sliders. Dip azimuth defaults to the right-hand normal of each digitized segment. A GeoJSON file can override both.</li>
+        <li>Fault dip defaults to Wheeler Feer's HiRISE three-point measurements where he made them: about 52° in Valles Marineris and about 55° in Cerberus Fossae, with Cerberus3 corrected from the delivered 90° to the recomputed 61.3°. Isidis has no manual measurement, so its thrust dip is the low-confidence Feature 11 wrinkle-ridge Fisher mean, about 16°. The dip source can switch to the HiRISE programmatic wall means or to the literature fallback of 60° normal and 30° thrust.</li>
+        <li>${escapeHtml(DIP_CAVEAT)}</li>
+        <li>Dip direction follows a measured wall when the segment is subparallel to that wall. Other segments, and the literature source, use the right-hand normal of the digitized trace. A GeoJSON file can still set dip_deg and dip_azimuth_deg.</li>
         <li>ΔCFS = Δτ + μ Δσ_n with Δσ_n positive in unclamping (King, Stein and Lin, 1994). Dynamic stress is added as a positive peak because the wave reverses; it does not accumulate.</li>
         <li>Static stress is the Boussinesq response to the missing crater mass. Inside the final crater the point-load solution is not used for the verdict: that rock is marked excavated.</li>
         <li>The crust is a flat elastic half-space. Topography changes the drawing and the overburden depth, not the Boussinesq geometry. The Moho and BDT are drawn parallel to the local surface at the single regional thickness.</li>
@@ -619,20 +687,23 @@ function wireControls() {
   document.querySelectorAll("[data-aux], [data-key]").forEach((row) => {
     const slider = row.querySelector("[data-slider]");
     const number = row.querySelector("[data-number]");
-    const spec = row.dataset.aux ? AUX[row.dataset.aux] : parameter(row.dataset.key);
-    const log = Boolean(spec.log || (spec.min > 0 && spec.max / spec.min > 80));
-    const read = () => (row.dataset.aux ? state.aux[row.dataset.aux] : state.values[row.dataset.key]);
+    const logFor = (spec) => Boolean(spec.log || (spec.min > 0 && spec.max / spec.min > 80));
     const write = (value) => {
+      const spec = specFor(row);
       const clamped = Math.min(spec.max, Math.max(spec.min, value));
       if (row.dataset.aux) state.aux[row.dataset.aux] = spec.step ? Math.round(clamped) : clamped;
       else state.values[row.dataset.key] = clamped;
-      reflect(row, spec, log);
+      reflect(row, spec, logFor(spec));
       schedule(false);
     };
-    slider.addEventListener("input", () => write(fromSlider(slider.valueAsNumber / 1000, spec, log)));
+    slider.addEventListener("input", () => {
+      const spec = specFor(row);
+      write(fromSlider(slider.valueAsNumber / 1000, spec, logFor(spec)));
+    });
     number.addEventListener("change", () => write(Number(number.value)));
-    row.querySelector("[data-reset]").addEventListener("click", () => write(spec.value));
-    reflect(row, spec, log);
+    row.querySelector("[data-reset]").addEventListener("click", () => write(specFor(row).value));
+    const initial = specFor(row);
+    reflect(row, initial, logFor(initial));
   });
   document.querySelector("#regime").addEventListener("change", (event) => {
     state.regime = event.target.value;
@@ -655,6 +726,12 @@ function wireControls() {
     if (!fault) return;
     state.impact = placeAtDistance(fault, Number(event.target.value));
     schedule(false);
+  });
+  document.querySelector("#dip-source").addEventListener("change", (event) => {
+    state.dipSource = event.target.value;
+    applyDipDefaults(state);
+    syncControls();
+    schedule(true);
   });
   document.querySelector("#fault-select").addEventListener("change", (event) => {
     state.selectedFaultId = event.target.value;
@@ -702,10 +779,18 @@ function syncControls() {
   if (cohesion) cohesion.value = state.cohesion;
   if (creep) creep.value = state.creepMode;
   document.querySelectorAll("[data-aux], [data-key]").forEach((row) => {
-    const spec = row.dataset.aux ? AUX[row.dataset.aux] : parameter(row.dataset.key);
+    const spec = specFor(row);
     const log = Boolean(spec.log || (spec.min > 0 && spec.max / spec.min > 80));
     reflect(row, spec, log);
   });
+  const dipSelect = document.querySelector("#dip-source");
+  if (dipSelect) dipSelect.value = state.dipSource;
+  const dipNote = document.querySelector("#dip-source-note");
+  if (dipNote) {
+    const normalDip = resolveDip({ regionId: state.regionId, source: state.dipSource, kinematics: "normal" });
+    const thrustDip = resolveDip({ regionId: state.regionId, source: state.dipSource, kinematics: "thrust" });
+    dipNote.textContent = `Normal faults ${formatNumber(normalDip.dipDeg)}° (${normalDip.badge}). Thrust faults ${formatNumber(thrustDip.dipDeg)}° (${thrustDip.badge}).`;
+  }
   const epoch = state.epoch === "early" ? "early" : "present";
   const region = currentRegion();
   document.querySelectorAll("[data-key]").forEach((row) => {
@@ -715,8 +800,18 @@ function syncControls() {
     if (/_(present|early)$/.test(key)) label = key.endsWith(epoch) ? "active" : "other epoch";
     if (key === region.crust_key) label = "this region";
     else if (key.startsWith("d_crust_") && key !== "d_crust_global") label = "other region";
+    if (key in DIP_KEYS) {
+      const resolved = resolveDip({ regionId: region.id, source: state.dipSource, kinematics: DIP_KEYS[key] });
+      label = resolved.badge;
+      const meta = row.querySelector("[data-dip-meta]");
+      if (meta) {
+        const summary = resolved.summary.trim().replace(/[.!?]$/, "");
+        meta.textContent = `${summary}. Active range ${formatNumber(resolved.min)}–${formatNumber(resolved.max)}°.`;
+      }
+    }
     badge.hidden = !label;
     badge.textContent = label;
+    badge.classList.toggle("low", label === "low confidence");
     row.classList.toggle("inactive", label === "other epoch" || label === "other region");
   });
   const distance = document.querySelector("#distance");
@@ -760,9 +855,13 @@ function placeAtDistance(feature, kilometers) {
   const end = coords[coords.length - 1];
   const start = coords[0];
   const strike = azimuthDeg(start[0], start[1], end[0], end[1]);
-  const azimuth = Number.isFinite(feature.properties.dip_azimuth_deg)
-    ? feature.properties.dip_azimuth_deg
-    : (strike + 90) % 360;
+  const azimuth = resolveDipAzimuth({
+    strikeDeg: strike,
+    regionId: state.regionId,
+    source: state.dipSource,
+    kinematics: feature.properties.kinematics,
+    explicitAzimuthDeg: feature.properties.dip_azimuth_deg,
+  }).dipAzimuthDeg;
   return destinationPoint(mid[0], mid[1], azimuth, kilometers * 1000);
 }
 
@@ -778,7 +877,10 @@ function distanceToFault(feature, impact) {
 function writeUrl() {
   const overrides = {};
   for (const item of catalog.parameters) {
-    if (Math.abs(state.values[item.key] - item.value) > Math.max(1e-9, Math.abs(item.value) * 1e-6)) {
+    const baseline = item.key in DIP_KEYS
+      ? resolveDip({ regionId: state.regionId, source: state.dipSource, kinematics: DIP_KEYS[item.key] }).dipDeg
+      : item.value;
+    if (Math.abs(state.values[item.key] - baseline) > Math.max(1e-9, Math.abs(baseline) * 1e-6)) {
       overrides[item.key] = state.values[item.key];
     }
   }
@@ -794,6 +896,7 @@ function writeUrl() {
     modulus: state.modulus,
     cohesion: state.cohesion,
     regime: state.regime,
+    dipSource: state.dipSource,
     impact: state.impact,
     fault: state.selectedFaultId,
     showSubsurface: state.showSubsurface,
@@ -817,11 +920,17 @@ function applyUrl(target) {
     if (payload.modulus) target.modulus = payload.modulus;
     if (payload.cohesion) target.cohesion = payload.cohesion;
     if (payload.regime === "normal" || payload.regime === "thrust") target.regime = payload.regime;
+    if (DIP_SOURCES.some((item) => item.id === payload.dipSource)) target.dipSource = payload.dipSource;
+    applyDipDefaults(target);
     if (payload.impact) target.impact = payload.impact;
     if (payload.fault) target.selectedFaultId = payload.fault;
     if (typeof payload.showSubsurface === "boolean") target.showSubsurface = payload.showSubsurface;
     for (const [key, value] of Object.entries(payload.overrides || {})) {
       if (key in target.values && Number.isFinite(value)) target.values[key] = value;
+    }
+    for (const [key, kinematics] of Object.entries(DIP_KEYS)) {
+      const resolved = resolveDip({ regionId: target.regionId, source: target.dipSource, kinematics });
+      target.values[key] = Math.min(resolved.max, Math.max(resolved.min, target.values[key]));
     }
     for (const [key, value] of Object.entries(payload.aux || {})) {
       if (key in target.aux && Number.isFinite(value)) target.aux[key] = value;
@@ -860,6 +969,12 @@ function exportPayload() {
     region: latest.region.id,
     epoch: state.epoch,
     regime: state.regime,
+    dipSource: state.dipSource,
+    dip: {
+      normal: resolveDip({ regionId: latest.region.id, source: state.dipSource, kinematics: "normal" }),
+      thrust: resolveDip({ regionId: latest.region.id, source: state.dipSource, kinematics: "thrust" }),
+      caveat: DIP_CAVEAT,
+    },
     creepMode: state.creepMode,
     modulus: state.modulus,
     cohesion: state.cohesion,

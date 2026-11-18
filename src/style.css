@@ -267,6 +267,30 @@ details.group summary small { font-weight: 400; color: var(--muted); }
   margin-left: 0.25rem;
 }
 
+.badge.low {
+  background: #f3d2c6;
+  color: #8a3418;
+}
+
+select.dip-source {
+  width: 100%;
+  margin-top: 0.2rem;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.28rem 0.35rem;
+}
+
+.caveat {
+  border-left: 3px solid var(--rust);
+  padding: 0.35rem 0.55rem;
+  margin: 0.35rem 0 0.15rem;
+  background: #f6efe6;
+  color: #3c362e;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .assumptions { font-size: 0.75rem; line-height: 1.4; color: #3c362e; }
 .assumptions ul { margin: 0.3rem 0 0.4rem; padding-left: 1.1rem; }
 

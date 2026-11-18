@@ -1,0 +1,13 @@
+region,group,axial_mean_strike,n,mean_dipdir,mean_dip,mean_strike_rhr,kappa,alpha95,median_dip40,median_plane60_dip
+Valles Marineris,all A+B,118.92,54,264.59,18.09,174.59,8.46,7.08,,
+Valles Marineris,dipping toward 209,118.92,34,231.82,27.10,141.82,15.41,6.48,33.60,34.92
+Valles Marineris,dipping toward 29,118.92,20,336.18,25.95,246.18,17.62,8.00,29.58,29.90
+Valles Marineris,class A only,135.02,42,263.07,21.30,173.07,8.58,8.00,,
+Cerberus Fossae,all A+B,110.17,132,36.36,11.87,306.36,2.11,11.62,,
+Cerberus Fossae,dipping toward 200,110.17,56,195.12,55.66,105.12,9.75,6.42,57.99,64.01
+Cerberus Fossae,dipping toward 20,110.17,76,20.54,54.02,290.54,9.71,5.51,59.53,61.59
+Cerberus Fossae,class A only,117.03,28,25.06,34.75,295.06,2.93,19.56,,
+Feature 11 (~88E 12N),all A+B,128.17,3,39.81,12.94,309.81,272.29,7.49,,
+Feature 11 (~88E 12N),dipping toward 218,128.17,0,,,,,,,
+Feature 11 (~88E 12N),dipping toward 38,128.17,3,39.81,12.94,309.81,272.29,7.49,11.82,14.39
+Feature 11 (~88E 12N),class A only,,0,,,,,,,

@@ -34,6 +34,7 @@ import {
   transientCavityVolumeM3,
   transientCraterDiameterM,
 } from "./physics.js";
+import { resolveDipAzimuth } from "./dips.js";
 
 const YEAR_S = 365.25 * 24 * 3600;
 /** Fault area inside this distance is the "nearby" fraction drawn on the sweep. */
@@ -71,8 +72,13 @@ function faultSegments(fault, index, spacingM) {
     const lengthM = haversineM(lon0, lat0, lon1, lat1);
     if (lengthM < 100) continue;
     const strike = azimuthDeg(lon0, lat0, lon1, lat1);
-    const dipAzimuth =
-      Number.isFinite(fault.dipAzimuthDeg) ? fault.dipAzimuthDeg : (strike + 90) % 360;
+    const fitted = resolveDipAzimuth({
+      strikeDeg: strike,
+      regionId: fault.regionId,
+      source: fault.dipSource,
+      kinematics: fault.kinematics,
+      explicitAzimuthDeg: fault.dipAzimuthDeg,
+    });
     segments.push({
       faultId: fault.id,
       faultName: fault.name,
@@ -86,7 +92,9 @@ function faultSegments(fault, index, spacingM) {
       midLat: (lat0 + lat1) / 2,
       lengthM,
       dipDeg: fault.dipDeg,
-      dipAzimuthDeg: dipAzimuth,
+      dipAzimuthDeg: fitted.dipAzimuthDeg,
+      dipAzimuthSource: fitted.source,
+      dipAzimuthWallId: fitted.wallId,
     });
   }
   return segments;

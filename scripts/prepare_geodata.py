@@ -68,7 +68,8 @@ REGIONS = [
         "max_cols": 700,
         "summary": (
             "Equatorial canyon system on the east flank of Tharsis. "
-            "Extensional troughs and grabens; the spreadsheet normal-fault dip applies."
+            "Extensional troughs and grabens. The default normal-fault dip is the "
+            "mean of Wheeler Feer's four HiRISE three-point measurements (51.79°)."
         ),
     },
     {
@@ -84,7 +85,9 @@ REGIONS = [
         "max_cols": 736,
         "summary": (
             "Young graben system in Elysium Planitia, southeast of Elysium Mons. "
-            "The long fossae are the normal-fault targets."
+            "The long fossae are the normal-fault targets. The default dip is the "
+            "mean of Wheeler's five three-point measurements (54.57°, with Cerberus3 "
+            "corrected from 90° to 61.3°)."
         ),
     },
     {
@@ -100,7 +103,9 @@ REGIONS = [
         "max_cols": 560,
         "summary": (
             "Noachian impact basin with a thin crust. Wrinkle ridges and the "
-            "Amenthes Rupes scarp are treated as thrusts (spreadsheet dip 30°)."
+            "Amenthes Rupes scarp are treated as thrusts. There is no manual dip "
+            "here; the default is the low-confidence Feature 11 wrinkle-ridge "
+            "Fisher mean (15.61°)."
         ),
     },
 ]
@@ -450,11 +455,13 @@ def build_faults(region: dict) -> dict:
             "Drop-in replacement for this file. Keep a GeoJSON FeatureCollection of "
             "LineStrings in degrees (longitude, latitude; west negative). "
             "properties.kinematics must be 'normal' or 'thrust'. "
-            "Optional dip_deg overrides the spreadsheet dip slider. "
-            "Optional dip_azimuth_deg (clockwise from north) overrides the default, "
-            "which is the right-hand normal of each digitized segment. "
-            "SIM 3292 stores graben axes and ridge crests, not dipping planes, so "
-            "the default dip azimuth is only a placeholder."
+            "Optional dip_deg overrides the dip slider. "
+            "Optional dip_azimuth_deg (clockwise from north) overrides the dip direction. "
+            "Otherwise the dip comes from the selected source (Wheeler measured, "
+            "HiRISE programmatic, or the literature fallback) and the dip direction "
+            "is a measured wall azimuth when the segment is subparallel to that wall, "
+            "or else the right-hand normal of the segment. "
+            "SIM 3292 stores graben axes and ridge crests, not dipping planes."
         ),
         "features": features,
     }
