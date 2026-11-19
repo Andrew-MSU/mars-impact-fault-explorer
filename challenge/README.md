@@ -6,7 +6,128 @@ The project question is: can a large impact on Mars start a magnetic field stron
 
 You are going to run the same equations the website uses, read the table, and answer four questions. A "no" is a real result. The goal is to be able to say what the model did.
 
-Do the steps in order. Each step ends with a checkpoint, a line that says what you should see.
+Do the steps in order. Each step ends with a checkpoint, a line that says what you should see. If the repository is not on your computer yet, start with Get set up.
+
+## Get set up
+
+This section puts the project on your computer and installs the programs the later steps call. Do it once. Mac commands are on the left. Windows commands are on the right, and they assume **Git Bash**, the terminal that comes with Git for Windows. The prompt in Git Bash looks like a Mac prompt.
+
+Open a terminal first.
+
+- Mac: open **Terminal** (search Spotlight for Terminal).
+- Windows: install Git in the next step, then open **Git Bash** from the Start menu. The ordinary Command Prompt will not match the commands below.
+
+### 1. Install Git
+
+Git is the tool that downloads the project and, later, picks up updates.
+
+| | Mac | Windows |
+| --- | --- | --- |
+| Install | In Terminal, run `xcode-select --install` and click Install in the window that appears. If you already use Homebrew, `brew install git` is the other way. | Download **Git for Windows** from [https://git-scm.com/download/win](https://git-scm.com/download/win) and accept the defaults. Then open **Git Bash**. |
+
+```bash
+git --version
+```
+
+You should now see a line like `git version 2.39.0` or any `git version 2.` something. The number does not have to match. If the shell says `command not found` or `not recognized`, the install did not finish or the terminal was opened too early. Close it, open a new one, and try again.
+
+### 2. Download the repository
+
+From any folder you are happy to keep the project in (on Mac, home is fine; in Git Bash, home is also fine):
+
+```bash
+git clone https://github.com/Andrew-MSU/mars-impact-fault-explorer.git
+cd mars-impact-fault-explorer
+```
+
+You should now see Git print `Cloning into 'mars-impact-fault-explorer'...` and then a prompt in that folder. Check:
+
+```bash
+ls package.json challenge
+```
+
+You should now see `package.json` and a `challenge` directory listed. Every later command assumes this folder is the one you are in. `pwd` prints the folder. It should end in `mars-impact-fault-explorer`.
+
+**No Git.** On the repository page, click the green **Code** button, then **Download ZIP**. Unzip it. The folder may be named `mars-impact-fault-explorer-main`. In the terminal:
+
+```bash
+cd ~/Downloads/mars-impact-fault-explorer-main
+```
+
+Use the real path if you unzipped it somewhere else. `ls package.json` should still print `package.json`. A ZIP download has no Git history, so the update command at the end of this section will not work. Download a new ZIP when you want a newer copy.
+
+### 3. Install Node.js
+
+Node runs the simulation and the website on your machine. The tests for this repository run on **Node.js 22** (the version in `.github/workflows/pages.yml`). Node 20 or newer also runs the scripts. There is no `engines` field in `package.json`.
+
+| | Mac | Windows |
+| --- | --- | --- |
+| Install | Download the **22 LTS** (or the current LTS, if it is 22 or newer) installer from [https://nodejs.org](https://nodejs.org). If a version menu is offered, choose 22. If you use Homebrew: `brew install node@22`. | Use the same site and the Windows installer. Accept the option that adds Node to PATH. Close Git Bash and open it again. |
+
+```bash
+node --version
+npm --version
+```
+
+You should now see `v22` (or `v20` or a newer `v2` something of 20 or higher) and an npm version on the next line. `v16` or `v18` is too old.
+
+Install the website's packages. This can take a minute the first time. You need a network connection.
+
+```bash
+npm install
+```
+
+You should now see a line like `added 15 packages` (the count can change). A `node_modules` folder now sits next to `package.json`. The simulation itself does not read that folder. The local website does.
+
+Start the site once, so you know the install worked:
+
+```bash
+npm run dev
+```
+
+You should now see a line `Local: http://localhost:5173/` (the port can be 5174 if 5173 is busy). Open that address in a browser. The Mars Impact Fault Explorer page should load. Stop the server with Ctrl+C when you have seen it. You will start it again at the end, after the simulation.
+
+### 4. Install Python and a virtual environment
+
+Python runs the file checker. The repository's tests use **Python 3.12**. Python 3.9 or newer is enough for the checker and the converter. Those two scripts use only the Python standard library, so they do not need extra packages. A virtual environment is a private folder for Python packages so this project does not change the rest of your computer.
+
+| | Mac | Windows (Git Bash) |
+| --- | --- | --- |
+| Install | Download Python 3.12 from [https://www.python.org/downloads/](https://www.python.org/downloads/) if `python3` is missing, or `brew install python@3.12`. | Download the same Windows installer. On the first screen, check **Add python.exe to PATH**. |
+| Check | `python3 --version` | `py -3 --version` |
+| Create | `python3 -m venv .venv` | `py -3 -m venv .venv` |
+| Activate | `source .venv/bin/activate` | `source .venv/Scripts/activate` |
+
+You should now see `Python 3.12` or another `Python 3.9` or newer from the check command. After activate, the prompt starts with `(.venv)`. That prefix means the private environment is on. It lasts until you close the terminal. Next time you open a terminal, `cd` into the repository and run the activate command again.
+
+```bash
+python -m pip install -r challenge/requirements.txt
+```
+
+You should now see the prompt come back with no error text. pip stays quiet when every line in the file is a comment, which is the case here. That silence is the checkpoint. An error would name a missing file or a package it could not download. VPLanet is listed in that file as a comment, for the optional section later. Leave it commented for now.
+
+Checkpoint for the whole setup: the prompt shows `(.venv)`, `pwd` ends in the repository folder, and these three commands print versions rather than `command not found`:
+
+```bash
+git --version
+node --version
+python --version
+```
+
+`python` (no 3) is the right command after activation, on Mac and on Windows. Before activation, Mac uses `python3` and Windows Git Bash uses `py -3`.
+
+### 5. Later updates
+
+When Andrew says the repository changed, and you cloned with Git:
+
+```bash
+cd mars-impact-fault-explorer
+git pull
+```
+
+You should now see `Already up to date.` or a short list of files that changed. Run it from the repository folder. If you used Download ZIP, `git pull` cannot work. Download a new ZIP instead.
+
+Then continue with the three commands below.
 
 ## The three commands
 
@@ -14,11 +135,11 @@ From the repository root (the folder that contains `package.json` and this `chal
 
 ```bash
 node challenge/run_explorer_model.mjs
-python3 challenge/validate_offline_run.py challenge/output/baseline_offline_run.json
+python challenge/validate_offline_run.py challenge/output/baseline_offline_run.json
 node challenge/check_loads.mjs challenge/output/baseline_offline_run.json
 ```
 
-On Windows, if `python3` is not recognized, use `py -3` in place of `python3` in the second command. The first and third commands stay the same.
+With `(.venv)` showing, `python` is right on Mac and on Windows. If the prefix is missing, Mac can use `python3` and Windows Git Bash can use `py -3` for that second command. The first and third commands stay the same.
 
 If you have not used a terminal before: open the terminal, `cd` into the repository, paste one command, press Enter, and wait until the terminal gives you a new prompt. Then paste the next command.
 
@@ -56,25 +177,17 @@ It is a practice result. It is not a published answer, and it is not a VPLanet i
 
 ## Before you start
 
-You need Node.js 20 or newer. You do not need Python for the three commands above, except the validator, which is one Python file with no packages to install. You do not need `npm install` until the website section at the end.
+Get set up leaves you in the repository folder with `(.venv)` on the prompt. If you opened a new terminal since then, `cd` into the repository and activate again.
 
-Check Node:
-
-```bash
-node --version
-```
-
-You should see `v20` or `v22` (or a newer v20+). If the command is not found, install the LTS build from [https://nodejs.org](https://nodejs.org) and open a new terminal.
-
-Check Python only if you will run the validator (you will):
+| | Mac | Windows (Git Bash) |
+| --- | --- | --- |
+| Turn the environment back on | `source .venv/bin/activate` | `source .venv/Scripts/activate` |
 
 ```bash
-python3 --version
+ls package.json
 ```
 
-You should see Python 3.9 or newer. 3.12 is what the repository tests use.
-
-Checkpoint: both commands print a version, and your current directory contains `package.json`. `ls` (Mac and Linux) or `dir` (Windows) should list `challenge`, `src`, and `data`.
+You should now see `package.json`. If the shell says it is missing, you are not in the repository folder yet.
 
 ## Step 1. Run the model
 
@@ -211,11 +324,13 @@ That 6.7×10²² is about an Earth-strength moment. It is far below 2.5×10²⁴
 
 ### Install
 
+The prompt should start with `(.venv)`. If it does not, go back to Get set up and activate the environment. Then install the pinned version from `challenge/requirements.txt` (the commented `vplanet==2.5.36` line):
+
 ```bash
-python3 -m pip install vplanet
+python -m pip install "vplanet==2.5.36"
 ```
 
-This compiles a C program. It needs a compiler and Python's header files. The first time can take a few minutes. The troubleshooting section covers the usual failures.
+This compiles a C program. It needs a compiler and Python's header files. The first time can take a few minutes. The troubleshooting section covers the usual failures. While `(.venv)` is showing, `vplanet` is found without any extra PATH edit.
 
 Check that the program is visible:
 
@@ -278,15 +393,39 @@ Core radius is not in this table. Stock ThermInt will not accept 1650, 1830, or 
 
 ## Troubleshooting
 
-**`node: command not found` or `node is not recognized`.** Node is not installed, or the terminal was opened before the installer finished. Install the LTS from nodejs.org, close the terminal, open a new one, and run `node --version` again.
+**`git: command not found` or `git is not recognized`.** On Mac, run `xcode-select --install` and open a new Terminal window. On Windows, install Git for Windows and open **Git Bash**, not Command Prompt.
 
-**`node --version` prints v16 or v18.** This repository needs Node 20 or newer. Install a current LTS and open a new terminal.
+**`xcode-select: note: install requested for command line developer tools` and then nothing.** A macOS dialog should appear. If it does not, run the command again. The install can take several minutes. When it finishes, `git --version` should print a version.
 
-**`python3: command not found`.** On Windows try `py -3 --version`. On Mac, the system `python3` is usually there. If `pip` is missing, call it as `python3 -m pip` so you use the same Python.
+**`git clone` stops with `Permission denied` or `Repository not found`.** The address is the public repository `https://github.com/Andrew-MSU/mars-impact-fault-explorer.git`. Check the spelling. A personal access token is not required for this public clone.
+
+**`ls package.json` says no such file.** You are not inside the project folder. Run `pwd`. If you cloned, `cd mars-impact-fault-explorer`. If you unzipped, the folder is often `mars-impact-fault-explorer-main` inside Downloads.
+
+**`git pull` says `not a git repository`.** This folder came from Download ZIP. Git has no history there. Download a new ZIP, or clone with `git clone` into a new folder and use that copy from then on.
+
+**`git pull` says `Your local changes would be overwritten`.** You edited a file Git is trying to update. Copy your edited file somewhere safe, or ask Andrew before you reset anything.
+
+**`node: command not found` or `node is not recognized`.** Node is not installed, or the terminal was opened before the installer finished. Install Node 22 from nodejs.org, close the terminal, open a new one, and run `node --version` again. On Windows, use the new Git Bash window.
+
+**`node --version` prints v16 or v18.** This repository's tests run on Node 22. Node 20 or newer runs the scripts. Install a current 22 LTS, or any current LTS of 22 or newer, and open a new terminal.
+
+**`npm install` fails with `EACCES` or `permission denied`.** You do not need `sudo`. Run `npm install` from the repository folder as your own user. If a previous install used `sudo`, ask Andrew before changing ownership of system folders.
+
+**`npm run dev` prints an address and then seems to hang.** It is waiting, on purpose. The site stays up until you press Ctrl+C.
+
+**`python3: command not found`.** On Windows Git Bash, before the virtual environment is on, use `py -3 --version`. On Mac, install Python 3.12 from python.org if the command is missing. After `(.venv)` is showing, use `python` on both systems.
+
+**`python -m venv .venv` says `ensurepip is not available`.** The Python install has no venv support. On Mac this sometimes means the Command Line Tools Python is a stub. Install Python 3.12 from python.org, open a new terminal, and run the venv command with that `python3`. On Ubuntu or Debian the message names the missing package: `sudo apt install python3.12-venv` (use the version `python3 --version` printed), then delete a half-made `.venv` folder and run the venv command again.
+
+**The prompt does not show `(.venv)`.** The activate command did not run, or it was the other operating system's path. Mac is `source .venv/bin/activate`. Windows Git Bash is `source .venv/Scripts/activate`. Run it from the repository folder, where the `.venv` folder is.
+
+**`pip install -r challenge/requirements.txt` says `No such file`.** You are not in the repository root. `ls challenge/requirements.txt` should print that path before you install.
 
 **`pip install vplanet` ends with `Python.h: No such file or directory`.** The C compiler cannot see Python's headers. On Ubuntu or Debian: `sudo apt install python3-dev build-essential`, then run the pip command again. On Mac: `xcode-select --install`, then pip again. On Windows, the pip build needs the "Desktop development with C++" workload from Visual Studio Build Tools. This is the main reason the VPLanet path is optional. The first path does not compile anything.
 
-**`vplanet: command not found` after a successful pip install.** The program is installed, and the shell cannot see it. Use the `export PATH="$HOME/.local/bin:$PATH"` line above. Windows: the warning from pip names a `Scripts` directory. Add it to Path.
+**`pip install vplanet` ends with `Python.h: No such file or directory`.** The C compiler cannot see Python's headers. On Ubuntu or Debian: `sudo apt install python3-dev build-essential`, then run the pip command again. On Mac: `xcode-select --install`, then pip again. On Windows, the pip build needs the "Desktop development with C++" workload from Visual Studio Build Tools. This is the main reason the VPLanet path is optional. The first path does not compile anything.
+
+**`vplanet: command not found` after a successful pip install.** Activate the virtual environment first (`(.venv)` on the prompt). The program is installed inside `.venv`. If you installed it outside that environment, Mac and Linux need `export PATH="$HOME/.local/bin:$PATH"`. Windows: the warning from pip names a `Scripts` directory. Add it to Path, or reinstall with the environment active.
 
 **`ERROR: Could not open file vpl.in` or the forward file never appears.** `vplanet vpl.in` has to be run in `challenge/vplanet/template`, the directory that contains `vpl.in`, `mars.in`, and `sun.in`. From the repository root the command is `vplanet challenge/vplanet/template/vpl.in` only if your current directory is still the root and VPLanet can find the body files. The reliable way is to `cd` into the template directory.
 
@@ -298,7 +437,7 @@ Core radius is not in this table. Stock ThermInt will not accept 1650, 1830, or 
 
 **A number in your answers is `NaN` or `Infinity`.** The website cannot read those tokens. The scripts write `null` for a missing time. Leave that as `null`.
 
-**Mac `zsh` says permission denied on pip.** Use `python3 -m pip install --user vplanet`. Do not use `sudo pip`.
+**Mac `zsh` says permission denied on pip.** Activate `.venv` and use `python -m pip install "vplanet==2.5.36"`. Do not use `sudo pip`.
 
 **You edited two knobs and the result moved.** Run again from the original file (the copy in `challenge/example/` matches the shipped default) and change one knob. Otherwise you cannot tell which edit did it.
 
@@ -318,15 +457,14 @@ The page is one screen. This is a short tour, in order.
 6. Move the water slider from dry to wet, or use the Dry and Wet buttons. Your table's regime goes from `slip` to `lid` when water goes from 0 to 1, and `dynamo_on` stays false. See whether the page tells the same story.
 7. Place an impact on Hellas (the southern basin, near longitude 70°, latitude −42°). That is the site the command-line run used.
 
-Optional, on your own computer, so you can see your file inside the page:
+Optional, on your own computer, so you can see your file inside the page. Get set up already ran `npm install`. Copy your run into the folder the page reads, then start the site:
 
 ```bash
 cp challenge/output/baseline_offline_run.json data/offline_runs/wheeler.json
-npm ci
 npm run dev
 ```
 
-`npm ci` installs the website's dependencies. It can take a minute the first time. `npm run dev` prints a local address, usually `http://localhost:5173/`. Open it.
+If `npm run dev` says it cannot find `vite`, run `npm install` once from the repository folder and try again. The command prints a local address, usually `http://localhost:5173/`. Open it.
 
 You should now see the same page, served from your checkout. Switch to **Basin & Global**. In the **Offline model** group, open **Offline file** and choose `wheeler.json`. Set the impactor to 1 km and water to dry. The offline block should show your `dynamo_on` value beside the browser estimate. Move water to the middle. The page should warn that neighboring runs disagree on the regime, because your dry rows are `slip` and your wet rows are `lid`. The loader refuses to blend those labels. That warning is the checkpoint for this step.
 
@@ -338,6 +476,7 @@ When you are finished looking, stop the dev server with Ctrl+C.
 
 | File | Role |
 | --- | --- |
+| `challenge/requirements.txt` | Python package list. The required list is empty. VPLanet is a commented pin. |
 | `challenge/run_explorer_model.mjs` | The run. Edit the knobs at the top. |
 | `challenge/validate_offline_run.py` | Checks the website's schema. |
 | `challenge/check_loads.mjs` | Reads the file with the website's loader. |
