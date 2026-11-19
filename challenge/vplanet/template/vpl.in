@@ -1,0 +1,32 @@
+# Primary file. VPLanet starts here. Run this from the directory that
+# contains these files:
+#
+#   vplanet vpl.in
+#
+# You should then see four lines, ending in "Simulation completed."
+# The history is written to marsdyn.mars.forward.
+
+sSystemName marsdyn
+iVerbose 2
+bOverwrite 1
+saBodyFiles sun.in mars.in
+
+# Internal units. A negative number in mars.in is converted from a
+# familiar unit (Earth masses, Earth radii, days, AU) into these.
+sUnitMass solar
+sUnitLength AU
+sUnitTime YEARS
+sUnitAngle d
+sUnitTemp K
+
+bDoLog 1
+iDigits 6
+bDoForward 1
+bVarDt 1
+dEta 0.01
+
+# How far to integrate, and how often to write a row.
+# 4.5e9 years is 4.5 billion years. 1e8 years is one row per 100 million years.
+# The forward file will report time in billions of years (Gyr).
+dStopTime 4.5e9
+dOutputTime 1.0e8

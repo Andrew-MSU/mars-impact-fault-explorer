@@ -31,6 +31,7 @@ jobs:
         run: |
           python3 test/test_parameters.py
           python3 test/test_measured_dips.py
+          python3 test/test_challenge.py
       - name: Install, physics tests, static build
         run: |
           npm ci

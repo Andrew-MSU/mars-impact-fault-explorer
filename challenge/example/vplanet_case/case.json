@@ -1,0 +1,6 @@
+{
+  "impactor_diameter_m": 1000,
+  "water_fraction": 0,
+  "label": "Stock VPLanet ThermInt + RadHeat, Mars mass and orbit, Earth core radius hardcoded by ThermInt. Practice conversion. Not a 1650 km Mars-core result.",
+  "note": "VPLanet does not simulate an impactor. impactor_diameter_m and water_fraction are labels so the website has a grid point to attach this one run to. 1000 m and water 0 match the website's starting sliders. If you raise dTMan or dTCore to stand in for an impact, put the diameter you mean here. If you uncomment dViscRef to stand in for a wet mantle, set water_fraction to 1."
+}
