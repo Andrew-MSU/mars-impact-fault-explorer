@@ -1,0 +1,15 @@
+# Python packages for the challenge.
+#
+# The validator (validate_offline_run.py) and the converter
+# (vplanet_to_explorer.py) use only the Python standard library.
+# Installing this file does not add packages until the optional line
+# below is uncommented.
+#
+# Install, from the repository root, with the virtual environment active:
+#   python -m pip install -r challenge/requirements.txt
+#
+# Optional: VPLanet ThermInt + RadHeat. This compiles a C program and needs
+# a compiler and Python's headers. Leave it commented until the optional
+# VPLanet section of challenge/README.md. Pin matches the version the
+# template was run with.
+# vplanet==2.5.36
