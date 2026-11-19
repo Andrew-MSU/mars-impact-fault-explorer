@@ -1,0 +1,37 @@
+{
+  "schema": "mars-explorer-offline-run/v1",
+  "example": false,
+  "label": "Stock VPLanet ThermInt + RadHeat, Mars mass and orbit, Earth core radius hardcoded by ThermInt. Practice conversion. Not a 1650 km Mars-core result.",
+  "source": "challenge/vplanet_to_explorer.py",
+  "model_limit": "Stock VPLanet ThermInt uses Earth's 3481 km core for the liquidus, the adiabat, and the magnetic moment. There is no 1650/1830/613 km input. dynamo_on uses the Gunell 2.5e24 A m^2 gate plus the nominal and storm standoff tests. A positive VPLanet moment below that gate is recorded in magnetic_moment_Am2 with dynamo_on false.",
+  "gunell_gate_Am2": 2.5e+24,
+  "axes": [
+    "impactor_diameter_m",
+    "water_fraction"
+  ],
+  "outputs": [
+    "dynamo_on",
+    "regime",
+    "time_to_onset_yr",
+    "duration_yr",
+    "magnetic_moment_Am2",
+    "standoff_over_rp"
+  ],
+  "runs": [
+    {
+      "dynamo_on": false,
+      "regime": "none",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 6.654704e+22,
+      "standoff_over_rp": 20.06371714000726,
+      "vplanet_peak_moment_earth_units": 0.831838,
+      "vplanet_moment_was_positive": true,
+      "vplanet_moment_positive_from_Gyr": 0.0,
+      "vplanet_moment_positive_until_Gyr": 0.5,
+      "vplanet_final_time_Gyr": 4.5,
+      "impactor_diameter_m": 1000,
+      "water_fraction": 0
+    }
+  ]
+}

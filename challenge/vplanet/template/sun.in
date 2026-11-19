@@ -1,0 +1,11 @@
+# The star. Mars needs a sun so the orbit has something to circle.
+# Leave this file alone on the first run.
+
+sName sun
+dMass 1
+dSemi 0
+dEcc 0
+dRadius 0.00135
+dLuminosity -1
+sStellarModel none
+saModules stellar

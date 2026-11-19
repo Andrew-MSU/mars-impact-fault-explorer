@@ -95,6 +95,10 @@ Every new free parameter is a slider, with its default, range, and source
 under the control. MODEL.md lists what is not interactive and the assumptions
 Wheeler should review before treating a number as a result.
 
+## First simulation
+
+Wheeler's walkthrough is [challenge/README.md](challenge/README.md). It runs one model from the command line, checks that the file matches what Basin & Global can load, and then opens this site. Start there before changing the model.
+
 ## Running it locally
 
 Node 22 is what CI uses. Any current Node 20+ should be fine.

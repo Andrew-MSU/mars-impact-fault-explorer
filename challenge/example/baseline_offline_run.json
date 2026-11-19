@@ -1,0 +1,132 @@
+{
+  "schema": "mars-explorer-offline-run/v1",
+  "example": false,
+  "label": "Explorer Basin & Global model, early Mars, impact at longitude 70.5, latitude -42.4. Core in this file: 1650 km + 150 km melt. Impactors of 80 km and larger are outside the point-load model's validity; those rows are included so the fast spin-stirring pathway can be seen. Practice result from the website's own equations. Not a VPLanet integration.",
+  "source": "challenge/run_explorer_model.mjs, which calls assessGlobal in src/model/globalScenario.js",
+  "gunell_gate_Am2": 2.5e+24,
+  "point_load_valid_below_m": 80000,
+  "axes": [
+    "impactor_diameter_m",
+    "water_fraction"
+  ],
+  "outputs": [
+    "dynamo_on",
+    "regime",
+    "time_to_onset_yr",
+    "duration_yr",
+    "magnetic_moment_Am2",
+    "standoff_over_rp"
+  ],
+  "runs": [
+    {
+      "impactor_diameter_m": 1000,
+      "water_fraction": 0,
+      "dynamo_on": false,
+      "regime": "slip",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 1000,
+      "water_fraction": 1,
+      "dynamo_on": false,
+      "regime": "lid",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 10000,
+      "water_fraction": 0,
+      "dynamo_on": false,
+      "regime": "slip",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 10000,
+      "water_fraction": 1,
+      "dynamo_on": false,
+      "regime": "lid",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 50000,
+      "water_fraction": 0,
+      "dynamo_on": false,
+      "regime": "slip",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 50000,
+      "water_fraction": 1,
+      "dynamo_on": false,
+      "regime": "lid",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 100000,
+      "water_fraction": 0,
+      "dynamo_on": false,
+      "regime": "slip",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 100000,
+      "water_fraction": 1,
+      "dynamo_on": false,
+      "regime": "lid",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 300000,
+      "water_fraction": 0,
+      "dynamo_on": false,
+      "regime": "slip",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    },
+    {
+      "impactor_diameter_m": 300000,
+      "water_fraction": 1,
+      "dynamo_on": false,
+      "regime": "lid",
+      "time_to_onset_yr": null,
+      "duration_yr": null,
+      "magnetic_moment_Am2": 360124134764455460000,
+      "standoff_over_rp": 3.525974055473301,
+      "pathway": "none"
+    }
+  ]
+}

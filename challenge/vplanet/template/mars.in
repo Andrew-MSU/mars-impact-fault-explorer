@@ -1,0 +1,96 @@
+# Mars-like body for VPLanet's ThermInt + RadHeat modules.
+#
+# ThermInt tracks the temperature of a mantle and a core, the heat flow
+# across the core-mantle boundary, and a magnetic moment. RadHeat adds
+# heat from uranium, thorium, and potassium as they decay.
+#
+# Stock VPLanet (the one `pip install vplanet` builds) fixes the metallic
+# core radius at Earth's, 3481 km. It has no input for 1650 km, 1830 km,
+# or 613 km. Those three sizes are on the recommended path,
+# challenge/run_explorer_model.mjs. Treat the moment from this file as a
+# practice integration. The core inside the code is Earth's core.
+#
+# A line that starts with # is a comment. VPLanet ignores it.
+# Negative values are in Earth units: -0.107 is 0.107 Earth masses.
+
+sName mars
+saModules radheat thermint
+
+# --- Orbit and spin. Mars relative to Earth. ---
+dMass -0.10745
+dRadius -0.533
+dRotPeriod -1.0259567
+dObliquity 25.2
+dRadGyra 0.366
+dEcc 0.0934
+dSemi -1.5237
+
+# --- Temperatures, in kelvin. These are the knobs for impact heat. ---
+# dTMan is the average mantle temperature.
+# dTCore is the average core temperature.
+# dTSurf is the surface temperature.
+# The core-mantle boundary temperature starts near dTCore times dAdJumpC2CMB.
+#
+# This file does not contain an impactor. To represent impact heat, raise
+# one temperature and run again.
+#   Mantle heat: try dTMan 1800 instead of 1600.
+#   Core heat:   try dTCore 3200 instead of 2750.
+# Write the impactor diameter you have in mind into case.json. VPLanet does
+# not read that number. It only keeps the website's grid attached to this run.
+dTMan 1600
+dTCore 2750
+dTSurf 250
+dAdJumpC2CMB 0.8
+
+# dTrefLind is the reference temperature in the core's melting curve.
+# The default is Earth's, and at these Mars-like temperatures that default
+# can freeze the whole core at the first step (the inner-core radius, RIC,
+# jumps from 0 to thousands of km, and the moment drops to 0).
+# 1300 K keeps the core liquid so you can see a magnetic history.
+# It is not a measured Mars melting temperature.
+# Delete this line on a second run if you want to see the freeze.
+dTrefLind 1300
+
+# --- Lid. ---
+# dStagLid 0 is a mobile lid: the surface can carry heat out more easily.
+# Any value above 0 is a stagnant lid: surface heat flow is cut to 1/25.
+# Stagnant is the Mars-like starting point. Set this to 0 to try a weaker lid.
+dStagLid 1
+
+# Activation energy of the mantle viscosity, J/mol.
+# Higher means viscosity changes more strongly with temperature.
+dActViscMan 300000
+
+# Water is not a VPLanet input. A wetter mantle is weaker, which you can
+# explore by uncommenting the next line (a lower reference viscosity).
+# If you do, set "water_fraction" in case.json from 0 to 1 so the website
+# file records that choice. Leave the line commented on the first run.
+# dViscRef 6e6
+
+# Solar-wind pressure at Mars, in pascal. About Earth's pressure divided
+# by the square of Mars's orbital distance. About 1.15 nPa.
+dPresSWind 1.15e-9
+
+# --- Radiogenic heating. ---
+# A negative power is in "Earth mantle" units. -1 would be Earth's mantle
+# power. -0.11 is that power times 0.11, a Mars-mass scale (Mars is about
+# a tenth of Earth's mass). It is a starting scale, not a lab measurement.
+# Crust and core are set to 0 so Earth's crustal default is not added on top.
+#
+# Try -0.05 and -0.30 on a later run. Change all four mantle lines together.
+d40KPowerMan -0.11
+d40KPowerCore 0
+d40KPowerCrust 0
+d232ThPowerMan -0.11
+d232ThPowerCore 0
+d232ThPowerCrust 0
+d238UPowerMan -0.11
+d238UPowerCore 0
+d238UPowerCrust 0
+d235UPowerMan -0.11
+d235UPowerCore 0
+d235UPowerCrust 0
+
+# Columns in the forward file, in this order. The minus sign asks for the
+# usual unit (Gyr, kelvin, W/m^2, Earth magnetic moments).
+saOutputOrder -Time -TMan -TCore -TCMB -HfluxCMB -HfluxCMBAd -HfluxCMBConv -MagMom -MagPauseRad -RIC -RadPowerMan -HflowSurf

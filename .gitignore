@@ -5,3 +5,10 @@ dist/
 .vite/
 __pycache__/
 *.pyc
+
+# Local products from the challenge. The finished examples live in challenge/example/.
+challenge/output/
+challenge/vplanet/template/*.forward
+challenge/vplanet/template/*.log
+challenge/vplanet/template/stdout.txt
+challenge/vplanet/template/stderr.txt
